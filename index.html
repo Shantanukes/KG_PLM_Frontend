@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kinetic Green — Smart PLM | Product Lifecycle Management</title>
+  <meta name="description"
+    content="Kinetic Green Smart PLM — Enterprise Product Lifecycle Management for Electric 2-Wheeler & 3-Wheeler. Teamcenter-inspired prototype." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet" />
+  <link rel="icon" type="image/svg+xml"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230B6E4F'/><text x='16' y='22' font-size='18' font-family='Inter' font-weight='700' fill='white' text-anchor='middle'>KG</text></svg>" />
+</head>
+
+<body>
+  <div id="app">
+    <!-- Login Screen -->
+    <div id="login-screen" class="login-screen premium-dark">
+      <div class="login-bg-elements">
+        <div class="bot-3d-container">
+          <div class="bot-3d-sphere"></div>
+          <div class="bot-3d-ring"></div>
+          <div class="bot-3d-ring-2"></div>
+        </div>
+      </div>
+      <div class="login-left fade-in-left">
+        <div class="login-brand-area">
+          <div class="login-logo-cluster">
+            <div class="login-logo-icon glass-icon"
+              style="padding: 0; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+              <img src="/src/assets/image.png" alt="Kinetic Green Logo"
+                style="width: 100%; height: 100%; object-fit: contain;">
+            </div>
+            <div>
+              <h1 class="login-brand-name">Kinetic Green</h1>
+              <p class="login-brand-sub"></p>
+            </div>
+          </div>
+          <p class="login-tagline">Enterprise Product Lifecycle Management for Electric Mobility</p>
+          <div class="ev-intelligence-showcase">
+            <div class="feature-grid">
+              <div class="feature-card glass-card-sm floating-item">
+                <div class="feature-icon-wrapper">
+                  <span class="material-icons-outlined">account_tree</span>
+                </div>
+                <div class="feature-content">
+                  <strong>Multi-Level BOM</strong>
+                </div>
+              </div>
+              <div class="feature-card glass-card-sm floating-item delay-1">
+                <div class="feature-icon-wrapper">
+                  <span class="material-icons-outlined">engineering</span>
+                </div>
+                <div class="feature-content">
+                  <strong>Eng. Changes</strong>
+                </div>
+              </div>
+              <div class="feature-card glass-card-sm floating-item delay-2">
+                <div class="feature-icon-wrapper">
+                  <span class="material-icons-outlined">verified</span>
+                </div>
+                <div class="feature-content">
+                  <strong>Homologation</strong>
+                </div>
+              </div>
+              <div class="feature-card glass-card-sm floating-item delay-3">
+                <div class="feature-icon-wrapper">
+                  <span class="material-icons-outlined">memory</span>
+                </div>
+                <div class="feature-content">
+                  <strong>Software & OTA</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="login-copyright stagger-item">© 2026 Kinetic Green Energy and Power Solutions Ltd.<br />D-1 Block,
+            Chinchwad, Pune, Maharashtra</p>
+        </div>
+      </div>
+      <div class="login-right fade-in-right">
+        <div class="login-form-container glass-card">
+          <h2>KG- Vertex PLM</h2>
+          <p class="login-subtitle">Access your product lifecycle workspace</p>
+          <form id="login-form" autocomplete="off">
+            <div class="form-group floating-label-group">
+              <div class="input-icon-wrap">
+                <span class="material-icons-outlined input-icon">person_outline</span>
+                <input type="text" id="login-email" placeholder=" " value="admin@kineticgreen.com" required />
+                <label for="login-email">Email</label>
+                <span class="focus-border"></span>
+              </div>
+            </div>
+            <div class="form-group floating-label-group">
+              <div class="input-icon-wrap">
+                <span class="material-icons-outlined input-icon">lock_outline</span>
+                <input type="password" id="login-password" placeholder=" " required />
+                <label for="login-password">Password</label>
+                <button type="button" class="toggle-password material-icons-outlined" for="login-password"
+                  aria-label="Toggle password visibility" tabindex="-1">visibility</button>
+              </div>
+            </div>
+            <div class="form-group floating-label-group select-group">
+              <div class="input-icon-wrap">
+                <span class="material-icons-outlined input-icon">badge</span>
+                <select id="login-role" required>
+                  <option value="Designer">Designer</option>
+                  <option value="Checker">Checker</option>
+                  <option value="COE Head">COE Head</option>
+                  <option value="Project Manager">Project Manager</option>
+                  <option value="Quality Auditor">Quality Auditor</option>
+                  <option value="Admin/IT Head" selected>Admin/IT Head</option>
+                </select>
+                <label for="login-role">Login Role</label>
+                <span class="focus-border"></span>
+              </div>
+            </div>
+            <div class="form-row-between stagger-item-form">
+              <label class="checkbox-label"><input type="checkbox" checked /> <span class="custom-checkbox"></span>
+                Remember me</label>
+              <a href="#" class="link-subtle hover-glow">Forgot password?</a>
+            </div>
+            <button type="submit" class="btn btn-gradient btn-full btn-glow stagger-item-form" id="login-submit">
+              <span class="btn-text">Sign In</span>
+              <span class="material-icons-outlined icon-18 btn-icon">arrow_forward</span>
+            </button>
+            <div class="login-sso"></div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Application Shell -->
+    <div id="app-shell" class="app-shell hidden">
+      <!-- Sidebar -->
+      <aside id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+          <div class="sidebar-logo">
+            <div class="logo-icon"
+              style="padding: 0; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+              <img src="/src/assets/image.png" alt="Kinetic Green Logo"
+                style="width: 100%; height: 100%; object-fit: contain;">
+            </div>
+            <div class="logo-text">
+              <span class="logo-brand">Kinetic Green</span>
+              <span class="logo-sub">Smart PLM</span>
+            </div>
+          </div>
+          <button id="sidebar-toggle" class="sidebar-collapse-btn" title="Collapse sidebar">
+            <span class="material-icons-outlined">menu_open</span>
+          </button>
+        </div>
+        <nav class="sidebar-nav">
+          <ul id="nav-list">
+            <li class="nav-item active" data-page="dashboard">
+              <span class="material-icons-outlined">dashboard</span>
+              <span class="nav-label">Dashboard</span>
+            </li>
+            <li class="nav-item" data-page="parts">
+              <span class="material-icons-outlined">category</span>
+              <span class="nav-label">Parts</span>
+            </li>
+            <li class="nav-item" data-page="bom">
+              <span class="material-icons-outlined">account_tree</span>
+              <span class="nav-label">BOM</span>
+            </li>
+            <li class="nav-item" data-page="documents">
+              <span class="material-icons-outlined">description</span>
+              <span class="nav-label">Part Release</span>
+            </li>
+            <li class="nav-item" data-page="upload-drawing">
+              <span class="material-icons-outlined">upload_file</span>
+              <span class="nav-label">Upload Drawing</span>
+            </li>
+            <li class="nav-item" data-page="workflows">
+              <span class="material-icons-outlined">route</span>
+              <span class="nav-label">My_inbox</span>
+            </li>
+            <li class="nav-item" data-page="ticket-raise">
+              <span class="material-icons-outlined">confirmation_number</span>
+              <span class="nav-label">Raise Ticket</span>
+            </li>
+            <li class="nav-item" data-page="ticket-history">
+              <span class="material-icons-outlined">history_toggle_off</span>
+              <span class="nav-label">Ticket History</span>
+            </li>
+            <li class="nav-item" data-page="change-mgmt">
+              <span class="material-icons-outlined">published_with_changes</span>
+              <span class="nav-label">Change Management</span>
+            </li>
+            <li class="nav-item" data-page="models">
+              <span class="material-icons-outlined">directions_car</span>
+              <span class="nav-label">Models & Variants</span>
+            </li>
+            <li class="nav-item" data-page="homologation">
+              <span class="material-icons-outlined">verified</span>
+              <span class="nav-label">Homologation</span>
+            </li>
+            <li class="nav-item" data-page="software">
+              <span class="material-icons-outlined">memory</span>
+              <span class="nav-label">Software / OTA</span>
+            </li>
+            <li class="nav-item" data-page="reports">
+              <span class="material-icons-outlined">analytics</span>
+              <span class="nav-label">Reports</span>
+            </li>
+            <li class="nav-item" data-page="suppliers">
+              <span class="material-icons-outlined">local_shipping</span>
+              <span class="nav-label">Suppliers</span>
+            </li>
+            <li class="nav-item" data-page="members">
+              <span class="material-icons-outlined">group</span>
+              <span class="nav-label">Members</span>
+            </li>
+            <li class="nav-item" data-page="part-number">
+              <span class="material-icons-outlined">format_list_numbered</span>
+              <span class="nav-label">Lookups</span>
+            </li>
+            <li class="nav-item" data-page="admin">
+              <span class="material-icons-outlined">admin_panel_settings</span>
+              <span class="nav-label">Admin</span>
+            </li>
+          </ul>
+        </nav>
+        <div class="sidebar-footer">
+          <div class="sidebar-user">
+            <div class="user-avatar">RA</div>
+            <div class="user-info">
+              <span class="user-name">Rohit Agarwal</span>
+              <span class="user-role">Super Admin</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="main-content">
+        <!-- Top Bar -->
+        <header class="topbar">
+          <div class="topbar-left">
+            <div class="breadcrumb" id="breadcrumb">
+              <span class="material-icons-outlined icon-16 icon-muted">home</span>
+              <span class="bc-sep">/</span>
+              <span class="bc-current" id="bc-current">Dashboard</span>
+            </div>
+          </div>
+          <div class="topbar-center">
+            <div class="global-search">
+              <span class="material-icons-outlined">search</span>
+              <input type="text" id="global-search" placeholder="Search parts, drawings, ECRs, models... (Ctrl+F)" />
+              <kbd>⌘F</kbd>
+            </div>
+          </div>
+          <div class="topbar-right">
+            <button class="topbar-icon-btn notification-btn" title="Notifications" id="notif-btn">
+              <span class="material-icons-outlined">notifications_none</span>
+              <span class="notif-badge">5</span>
+            </button>
+            <button class="topbar-icon-btn" title="Help">
+              <span class="material-icons-outlined">help_outline</span>
+            </button>
+            <div class="topbar-divider"></div>
+            <button class="topbar-user-btn" id="user-menu-btn">
+              <div class="user-avatar-sm">RA</div>
+              <span class="material-icons-outlined icon-16">expand_more</span>
+            </button>
+          </div>
+        </header>
+
+        <!-- Page Container -->
+        <div class="page-container" id="page-container">
+          <!-- Dynamic page content injected here -->
+        </div>
+      </main>
+    </div>
+    <!-- Command Palette Overlay -->
+    <div id="cmd-palette" class="cmd-palette-overlay">
+      <div class="cmd-palette-modal">
+        <div class="cmd-palette-input-wrap">
+          <span class="material-icons-outlined">search</span>
+          <input type="text" id="cmd-palette-input" placeholder="Search or jump to... (e.g., 'BOM', 'ECR-001')" />
+          <kbd style="border-radius:4px;padding:2px 6px;background:var(--bg-muted);color:var(--text-secondary);font-size:0.75rem;margin-left:8px;">ESC</kbd>
+        </div>
+        <div class="cmd-palette-results" id="cmd-palette-results">
+          <!-- Dynamic Results -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+
+</html>
