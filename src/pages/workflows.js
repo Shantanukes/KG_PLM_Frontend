@@ -1,5 +1,5 @@
 import { showToast, showModal, navigateTo } from '../main.js';
-import { assignWorkflow, fetchWorkflows } from '../api/index.js';
+import { assignWorkflow, fetchWorkflows, authFetch } from '../api/index.js';
 
 const RUNTIME_KEY = 'kg_plm_runtime';
 const SESSION_USER_KEY = 'kg_plm_session_user';
@@ -59,8 +59,8 @@ function openWorkflowEditModal(taskId, taskTitle) {
   const attachments = getTaskAttachments(taskId);
   const rows = attachments.length
     ? attachments.map((f) => {
-        const canDelete = f.uploadedBy === currentUser;
-        return `<tr>
+      const canDelete = f.uploadedBy === currentUser;
+      return `<tr>
           <td style="max-width:220px;white-space:normal;line-height:1.4">${f.name}</td>
           <td>${f.uploadedBy}</td>
           <td class="text-secondary text-sm">${f.uploadedAt}</td>
@@ -71,7 +71,7 @@ function openWorkflowEditModal(taskId, taskTitle) {
             </button>
           </td>
         </tr>`;
-      }).join('')
+    }).join('')
     : '<tr><td colspan="5" class="text-xs text-secondary">No files uploaded yet.</td></tr>';
 
   const overlay = showModal(
@@ -178,7 +178,7 @@ export function renderWorkflows(container) {
         <textarea class="form-input" id="wf-comments" rows="2" placeholder="Enter comments..."></textarea></div>
       <div class="form-group"><label class="form-label">Due Date</label>
         <input class="form-input" type="date" id="wf-due-date" /></div>`,
-        `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+      `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
       <button class="btn btn-primary" id="launch-workflow">Assign Workflow</button>`
     );
     setTimeout(() => {
@@ -186,22 +186,22 @@ export function renderWorkflows(container) {
         const entityType = document.getElementById('wf-entity-type')?.value?.trim();
         const entityIdStr = document.getElementById('wf-entity-id')?.value?.trim();
         const assignedUserStr = document.getElementById('wf-assigned-user')?.value?.trim();
-        
+
         if (!entityType || !entityIdStr || !assignedUserStr) {
           return showToast('Entity Type, Entity ID, and Assigned User ID are required', 'error');
         }
-        
+
         const title = document.getElementById('wf-title')?.value?.trim() || null;
         const comments = document.getElementById('wf-comments')?.value?.trim() || null;
         const dueDateInput = document.getElementById('wf-due-date')?.value;
-        
+
         let dueDate = null;
         if (dueDateInput) {
           dueDate = new Date(dueDateInput).toISOString().split('.')[0] + 'Z';
         } else {
           dueDate = new Date(Date.now() + 86400000).toISOString().split('.')[0] + 'Z';
         }
-        
+
         const btn = document.getElementById('launch-workflow');
         btn.disabled = true;
         btn.textContent = 'Assigning...';
@@ -215,12 +215,12 @@ export function renderWorkflows(container) {
             comments: comments,
             dueDate: dueDate
           };
-          
+
           await assignWorkflow(payload);
-          
+
           document.querySelector('.modal-overlay')?.remove();
           showToast(`Workflow task assigned successfully`, 'success');
-          
+
           // Trigger a refresh of the UI to show the newly assigned task
           const activeTab = document.querySelector('#wf-tabs .tab-btn.active')?.dataset.tab;
           if (activeTab) {
@@ -243,7 +243,7 @@ export function renderWorkflows(container) {
 
 async function renderWFTab(tc, tab) {
   if (tab === 'my') await renderMyTasks(tc);
-  else if (tab === 'progress') renderInProgress(tc);
+  else if (tab === 'progress') await renderInProgress(tc);
   else if (tab === 'completed') renderCompleted(tc);
 }
 
@@ -253,32 +253,17 @@ async function renderMyTasks(tc) {
     tc.innerHTML = '<div style="padding: 20px; text-align: center;">Loading workflows...</div>';
     const apiData = await fetchWorkflows();
     const fetchedTasks = Array.isArray(apiData) ? apiData : (apiData?.items || []);
-    
+
     tasks = fetchedTasks.map(t => {
-      const entityType = t.entityType || t.EntityType || 'Workflow';
-      const entityId = t.entityId || t.EntityId || '';
-      const assignedUserId = t.assignedUserId || t.AssignedUserId || '';
-      const title = t.title || t.Title || 'Untitled Task';
-      const comments = t.comments || t.Comments || '';
-      const dueDate = t.dueDate || t.DueDate;
-      const id = t.id || t.Id || t.workflowId || t.WorkflowId || t.taskId || t.TaskId;
-      const prio = t.priority || t.Priority;
-
-      let priorityClass = 'medium';
-      if (prio === 4 || (typeof prio === 'string' && prio.toLowerCase() === 'critical')) priorityClass = 'critical';
-      else if (prio === 3 || (typeof prio === 'string' && prio.toLowerCase() === 'high')) priorityClass = 'high';
-      else if (prio === 1 || (typeof prio === 'string' && prio.toLowerCase() === 'low')) priorityClass = 'low';
-
       return {
-        id: id ? `WF-${id}` : `WF-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
-        title: title,
-        comments: comments,
-        by: assignedUserId ? `User ${assignedUserId}` : 'System',
-        due: dueDate ? new Date(dueDate).toLocaleDateString() : 'N/A',
-        dueColor: '#10B981',
-        priority: priorityClass,
-        type: entityType,
-        partId: entityId
+        id: t.id ? `WF-${t.id}` : `WF-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+        subject: t.title || 'Untitled Task',
+        type: t.entityType || 'Workflow',
+        step: t.status || 'Pending',
+        assignee: t.assignedUserName || t.assignedByUserName || 'System',
+        started: t.createdAt ? new Date(t.createdAt).toLocaleDateString() : 'N/A',
+        ref: t.entityReference || '-',
+        entityId: t.entityId
       };
     });
   } catch (err) {
@@ -302,129 +287,112 @@ async function renderMyTasks(tc) {
     <div class="card">
       <div class="card-header">
         <div class="card-title">Pending Task Queue</div>
-        <span class="badge badge-priority-high">${tasks.length} pending</span>
+        <span class="badge badge-priority-high">${tasks.filter(t => t.step !== 'Completed').length} pending</span>
       </div>
       <div class="card-body no-pad">
         <table class="data-table">
-          <thead><tr><th>Priority</th><th>Task Type</th><th>Description</th><th>Approved By</th><th>SLA / Due</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Workflow ID</th><th>Subject</th><th>Type</th><th>Current Step</th><th>Assignee</th><th>Started</th><th>Part Ref</th><th>Action</th></tr></thead>
           <tbody>
             ${tasks.length ? tasks.map(t => `
-              <tr>
-                <td><span class="badge badge-priority-${t.priority}">${t.priority.charAt(0).toUpperCase()+t.priority.slice(1)}</span></td>
+              <tr style="${t.step === 'Completed' ? 'opacity: 0.7; background: #F9FAFB;' : ''}">
+                <td style="font-family:var(--font-mono);font-weight:600;">${t.id}</td>
+                <td style="max-width:280px;white-space:normal;line-height:1.4;">${t.subject}</td>
                 <td><span class="tag">${t.type}</span></td>
-                <td style="max-width:280px;white-space:normal;line-height:1.4;font-size:0.857rem">
-                  <div style="font-weight:600;margin-bottom:4px">${t.title}</div>
-                  ${t.comments ? `<div style="color:var(--text-secondary);font-size:0.75rem">${t.comments}</div>` : ''}
-                </td>
-                <td>${t.by}</td>
-                <td><span style="font-weight:600;color:${t.dueColor};font-size:0.857rem">${t.due}</span></td>
+                <td><span class="badge" style="background:${t.step === 'Completed' ? '#10B981' : '#F59E0B'}; color:#fff; border:none; padding:4px 8px; border-radius:4px;">${t.step}</span></td>
+                <td>${t.assignee}</td>
+                <td>${t.started}</td>
+                <td style="font-family:var(--font-mono); font-size:0.857rem;">${t.ref}</td>
                 <td>
-                  <button class="btn btn-primary btn-xs wf-action-btn" data-id="${t.id}" data-title="${t.title}" data-by="${t.by}" data-part="${t.partId || ''}">Action</button>
-                  <button class="btn btn-outline btn-xs wf-edit-btn" data-id="${t.id}" data-title="${t.title}">Edit</button>
-                  <button class="btn btn-ghost btn-xs wf-delegate-btn" data-id="${t.id}" title="Delegate">
-                    <span class="material-icons-outlined" style="font-size:14px">transfer_within_a_station</span>
-                  </button>
+                  ${t.type === 'Part' ? `<button class="btn btn-outline btn-xs view-stage-btn" data-id="${t.entityId}">View Stage</button>` : ''}
                 </td>
-              </tr>`).join('') : '<tr><td colspan="6" class="text-center text-secondary py-4" style="text-align: center;">No pending tasks</td></tr>'}
+              </tr>`).join('') : '<tr><td colspan="8" class="text-center text-secondary py-4" style="text-align: center;">No pending tasks</td></tr>'}
           </tbody>
         </table>
       </div>
     </div>`;
 
-  // Removed dummy event listeners for advance and reassign
+  tc.querySelectorAll('.view-stage-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const entityId = e.target.dataset.id;
+      if (!entityId || entityId === 'undefined') return showToast('Entity ID not found', 'error');
+      
+      const prevText = e.target.textContent;
+      e.target.textContent = 'Loading...';
+      e.target.disabled = true;
 
-  tc.querySelectorAll('.wf-action-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const title = btn.dataset.title;
-      showModal('Action Required',
-        `<p style="margin-bottom:16px">Task: <strong>${title}</strong></p>
-         <div class="form-group"><label class="form-label">Action</label>
-          <select class="form-select" id="wf-action-type">
-            <option>Approve</option><option>Approve with Comments</option><option>Reject & Return</option><option>Request Clarification</option>
-          </select></div>
-         <div class="form-group"><label class="form-label">Comments / Feedback</label><textarea class="form-input" id="wf-feedback" rows="3" placeholder="Provide reviewer notes…" style="resize:vertical"></textarea></div>
-         <div class="text-xs text-secondary">For rejection, feedback is mandatory and will be sent to the creator.</div>`,
-        `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
-         <button class="btn btn-primary" id="submit-wf-action">Submit Action</button>`
-      );
-      setTimeout(() => {
-        document.getElementById('submit-wf-action')?.addEventListener('click', () => {
-          const action = document.getElementById('wf-action-type')?.value;
-          const feedbackText = document.getElementById('wf-feedback')?.value?.trim() || '';
-          const creator = btn.dataset.by || 'Originator';
-          const taskId = btn.dataset.id || 'Task';
-          const partId = btn.dataset.part || '';
-          const reviewer = 'Current Reviewer';
-
-          if (action?.startsWith('Reject') && !feedbackText) {
-            showToast('Rejection feedback is required before submitting.', 'error');
-            return;
-          }
-
-          document.querySelector('.modal-overlay')?.remove();
-          const isApprove = action.startsWith('Approve');
-          if (isApprove) {
-            upsertPartWorkflow(partId, {
-              state: 'review',
-              currentStep: 3,
-              lastUpdated: new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }),
-            });
-          } else if (action?.startsWith('Reject')) {
-            upsertPartWorkflow(partId, {
-              state: 'rejected',
-              currentStep: 2,
-              lastFeedback: feedbackText,
-              lastRejectedBy: reviewer,
-              lastUpdated: new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }),
-              steps: [
-                { name: 'Creation', owner: creator, status: 'completed' },
-                { name: 'Technical Check', owner: reviewer, status: 'rejected' },
-                { name: 'COE Approval', owner: 'COE Head', status: 'pending' },
-                { name: 'Effectivity', owner: 'Project Manager', status: 'pending' },
-                { name: 'Final Release', owner: 'System', status: 'pending' },
-              ],
-            });
-            pushRejectionFeedback({
-              taskId,
-              creator,
-              feedback: feedbackText,
-              rejectedBy: reviewer,
-              time: new Date().toLocaleString(),
-            });
-            showToast(`Rejected. ${creator} notified with feedback.`, 'warning');
-          } else {
-            showToast('Clarification requested from creator with feedback.', 'info');
-          }
-
-          if (isApprove) showToast('Task approved! Next step initiated.', 'success');
-          btn.closest('tr').style.opacity = '0.4';
-          setTimeout(() => btn.closest('tr').remove(), 500);
-        });
-      }, 50);
+      try {
+        const res = await authFetch('/api/Parts/' + entityId + '/current-approval-stage');
+        if (res.ok) {
+          const data = await res.json();
+          showModal('Current Approval Stage',
+            `<div style="font-family:var(--font-mono); font-size:14px; line-height: 1.6; padding: 10px;">
+               <div style="margin-bottom: 12px;"><strong>Approval Type:</strong> ${data.approvalType || 'N/A'}</div>
+               <div style="margin-bottom: 12px;"><strong>Current Stage:</strong> <span class="badge" style="background:#F59E0B;color:#fff;">${data.currentApprovalStage || 'N/A'}</span></div>
+               <div style="margin-bottom: 12px;"><strong>Assigned To:</strong> ${data.name || 'N/A'}</div>
+               <div><strong>Role:</strong> ${data.role || 'N/A'}</div>
+             </div>`,
+            `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Close</button>`
+          );
+        } else {
+          showToast('Failed to fetch approval stage', 'error');
+        }
+      } catch (err) {
+        showToast('Error fetching approval stage', 'error');
+      } finally {
+        e.target.textContent = prevText;
+        e.target.disabled = false;
+      }
     });
   });
-
-  tc.querySelectorAll('.wf-delegate-btn').forEach(btn => {
-    btn.addEventListener('click', () => showToast(`Delegation dialog for task ${btn.dataset.id}`, 'info'));
-  });
-
-  tc.querySelectorAll('.wf-edit-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      openWorkflowEditModal(btn.dataset.id, btn.dataset.title || 'Task');
-    });
-  });
-
 }
 
-function renderInProgress(tc) {
+async function renderInProgress(tc) {
+  tc.innerHTML = '<div style="padding: 20px; text-align: center;">Loading in-progress workflows...</div>';
+  let tasks = [];
+  try {
+    const apiData = await fetchWorkflows();
+    const fetchedTasks = Array.isArray(apiData) ? apiData : (apiData?.items || []);
+
+    const pendingTasks = fetchedTasks.filter(t => t.status !== 'Completed');
+
+    tasks = pendingTasks.map(t => {
+      return {
+        id: t.id ? `WF-${t.id}` : `WF-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+        subject: t.title || 'Untitled Task',
+        type: t.entityType || 'Workflow',
+        step: t.status || 'Pending',
+        assignee: t.assignedUserName || 'System',
+        started: t.createdAt ? new Date(t.createdAt).toLocaleDateString() : 'N/A',
+        ref: t.entityReference || '-',
+        entityId: t.entityId
+      };
+    });
+  } catch (err) {
+    console.error('Failed to load in-progress workflows', err);
+  }
+
   tc.innerHTML = `
     <div class="card">
       <div class="card-header"><div class="card-title">In-Progress Workflows</div></div>
       <div class="card-body no-pad">
         <table class="data-table">
-          <thead><tr><th>Workflow ID</th><th>Subject</th><th>Template</th><th>Current Step</th><th>Assignee</th><th>Started</th><th>SLA</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Workflow ID</th><th>Subject</th><th>Type</th><th>Current Step</th><th>Assignee</th><th>Started</th><th>Part Ref</th><th>Action</th></tr></thead>
           <tbody>
-            <tr><td colspan="8" class="text-center text-secondary py-4" style="text-align: center;">No in-progress workflows</td></tr>
+            ${tasks.length ? tasks.map(t => `
+              <tr>
+                <td style="font-family:var(--font-mono);font-weight:600;">${t.id}</td>
+                <td style="max-width:280px;white-space:normal;line-height:1.4;">${t.subject}</td>
+                <td><span class="tag">${t.type}</span></td>
+                <td><span class="badge" style="background:#F59E0B; color:#fff; border:none; padding:4px 8px; border-radius:4px;">${t.step}</span></td>
+                <td>${t.assignee}</td>
+                <td>${t.started}</td>
+                <td style="font-family:var(--font-mono); font-size:0.857rem;">${t.ref}</td>
+                <td>
+                  <button class="btn btn-outline btn-xs view-wf-btn" data-id="${t.id}" style="margin-right:4px;">View</button>
+                  ${t.type === 'Part' ? `<button class="btn btn-outline btn-xs view-stage-btn" data-id="${t.entityId}">View Stage</button>` : ''}
+                </td>
+              </tr>
+            `).join('') : '<tr><td colspan="8" class="text-center text-secondary py-4" style="text-align: center;">No in-progress workflows</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -432,6 +400,40 @@ function renderInProgress(tc) {
 
   tc.querySelectorAll('.view-wf-btn').forEach(btn => {
     btn.addEventListener('click', () => showToast(`Opening workflow ${btn.dataset.id}…`, 'info'));
+  });
+
+  tc.querySelectorAll('.view-stage-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const entityId = e.target.dataset.id;
+      if (!entityId || entityId === 'undefined') return showToast('Entity ID not found', 'error');
+      
+      const prevText = e.target.textContent;
+      e.target.textContent = 'Loading...';
+      e.target.disabled = true;
+
+      try {
+        const res = await authFetch('/api/Parts/' + entityId + '/current-approval-stage');
+        if (res.ok) {
+          const data = await res.json();
+          showModal('Current Approval Stage',
+            `<div style="font-family:var(--font-mono); font-size:14px; line-height: 1.6; padding: 10px;">
+               <div style="margin-bottom: 12px;"><strong>Approval Type:</strong> ${data.approvalType || 'N/A'}</div>
+               <div style="margin-bottom: 12px;"><strong>Current Stage:</strong> <span class="badge" style="background:#F59E0B;color:#fff;">${data.currentApprovalStage || 'N/A'}</span></div>
+               <div style="margin-bottom: 12px;"><strong>Assigned To:</strong> ${data.name || 'N/A'}</div>
+               <div><strong>Role:</strong> ${data.role || 'N/A'}</div>
+             </div>`,
+            `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Close</button>`
+          );
+        } else {
+          showToast('Failed to fetch approval stage', 'error');
+        }
+      } catch (err) {
+        showToast('Error fetching approval stage', 'error');
+      } finally {
+        e.target.textContent = prevText;
+        e.target.disabled = false;
+      }
+    });
   });
 }
 
@@ -441,7 +443,7 @@ function renderCompleted(tc) {
       <div class="card-header"><div class="card-title">Completed Workflows</div><div class="text-xs text-secondary">Last 30 days · 0 completed</div></div>
       <div class="card-body no-pad">
         <table class="data-table">
-          <thead><tr><th>Workflow ID</th><th>Subject</th><th>Template</th><th>Completed</th><th>Cycle Time</th><th>Result</th></tr></thead>
+          <thead><tr><th>Workflow ID</th><th>Subject</th><th>Type</th><th>Completed</th><th>Cycle Time</th><th>Result</th></tr></thead>
           <tbody>
             <tr><td colspan="6" class="text-center text-secondary py-4" style="text-align: center;">No completed workflows</td></tr>
           </tbody>

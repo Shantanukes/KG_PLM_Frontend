@@ -1,5 +1,5 @@
 import { showToast, showModal, navigateTo } from '../main.js';
-import { createPart, getParts, getPartById, getPartByNumber, updatePart, revisePart } from '../api/parts.js';
+import { createPart, getParts, getPartById, getPartByNumber, updatePart, revisePart, deletePart } from '../api/parts.js';
 import { createBom, getBomTree, updateBomLine, deleteBomLine, getBomLines, getBomWhereUsed, getBoms, getBomParts, getBomById, getAllBomsWithParts, addBomLine } from '../api/bom.js';
 
 // ─── Master Data from PartNo.xlsx ───────────────────────────
@@ -932,6 +932,13 @@ async function renderPartSearch(tc) {
               <option value="2">Released</option>
             </select>
           </div>
+          <div style="flex:1;min-width:150px">
+            <select class="form-select" id="filter-myparts">
+              <option value="">myPartsOnly</option>
+              <option value="true">true</option>
+              <option value="false">false</option>
+            </select>
+          </div>
         </div>
       </div>
     </div>
@@ -1014,6 +1021,7 @@ async function renderPartSearch(tc) {
           <button class="btn btn-ghost btn-xs btn-edit-part" data-id="${p.id}" title="Edit"><span class="material-icons-outlined" style="font-size:16px">edit</span></button>
           <button class="btn btn-ghost btn-xs btn-revise-part" data-id="${p.id}" data-pn="${p.partNumber}" title="Revise Part"><span class="material-icons-outlined" style="font-size:16px">history</span></button>
           <button class="btn btn-ghost btn-xs btn-upload-part" data-pn="${p.partNumber}" title="Upload Drawing"><span class="material-icons-outlined" style="font-size:16px">upload_file</span></button>
+          <button class="btn btn-ghost btn-xs btn-delete-part" data-id="${p.id}" title="Delete"><span class="material-icons-outlined" style="font-size:16px;color:#DC2626;">delete</span></button>
         </td>
       </tr>`).join('');
 
@@ -1038,6 +1046,24 @@ async function renderPartSearch(tc) {
     tbody.querySelectorAll('.btn-upload-part').forEach(btn => {
       btn.addEventListener('click', () => {
         navigateTo('upload-drawing', btn.dataset.pn);
+      });
+    });
+    tbody.querySelectorAll('.btn-delete-part').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Are you sure you want to delete this part? This action cannot be undone.')) return;
+        const pId = btn.dataset.id;
+        const prevHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="material-icons-outlined" style="font-size:16px;color:#9CA3AF;">hourglass_empty</span>';
+        btn.disabled = true;
+        try {
+          await deletePart(pId);
+          showToast('Part deleted successfully.', 'success');
+          tc.querySelector('#btn-search-parts')?.click(); // Refresh list
+        } catch (err) {
+          showToast(err.message || 'Error deleting part.', 'error');
+          btn.innerHTML = prevHtml;
+          btn.disabled = false;
+        }
       });
     });
 
@@ -1123,12 +1149,15 @@ async function renderPartSearch(tc) {
         const model = tc.querySelector('#filter-model')?.value.trim();
         const group = tc.querySelector('#filter-group')?.value.trim();
         const status = tc.querySelector('#filter-status')?.value.trim();
+        const myParts = tc.querySelector('#filter-myparts')?.value.trim();
 
         if (inputName) params.name = inputName;
         if (cat) params.category = cat;
         if (model) params.model = model;
         if (group) params.group = group;
         if (status) params.lifecycleStatus = status;
+        if (myParts === 'true') params.myPartsOnly = true;
+        if (myParts === 'false') params.myPartsOnly = false;
 
         await loadAll(params);
       }
@@ -1146,6 +1175,7 @@ async function renderPartSearch(tc) {
     tc.querySelector('#filter-model').value = '';
     tc.querySelector('#filter-group').value = '';
     tc.querySelector('#filter-status').value = '';
+    if (tc.querySelector('#filter-myparts')) tc.querySelector('#filter-myparts').value = '';
     loadAll();
   });
   loadAll();
@@ -1427,10 +1457,6 @@ function renderCreatePart(tc) {
             <input class="form-input" id="cp-weight" type="number" step="0.001" placeholder="0.000" />
           </div>
           <div class="form-group">
-            <label class="form-label">GST Code</label>
-            <input class="form-input" id="cp-gst" placeholder="e.g. 87089900" />
-          </div>
-          <div class="form-group">
             <label class="form-label">Material / Grade</label>
             <input class="form-input" id="cp-material" placeholder="e.g. CRCA Steel IS:1079 Grade D" />
           </div>
@@ -1477,16 +1503,6 @@ function renderCreatePart(tc) {
         <div class="form-group" style="margin-top:8px">
           <label class="form-label">Description / Technical Notes</label>
           <textarea class="form-input" id="cp-desc" rows="3" placeholder="Additional technical specifications or notes…" style="resize:vertical"></textarea>
-        </div>
-
-        <div style="background:var(--bg-muted);border-radius:var(--radius-md);padding:14px 18px;margin:20px 0">
-          <div class="section-title" style="margin-bottom:10px">Pre-Flight Checklist</div>
-          <div style="display:flex;flex-direction:column;gap:6px">
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.857rem;cursor:pointer"><input type="checkbox" id="chk1" style="accent-color:var(--brand-primary)" /> Part name entered and verified</label>
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.857rem;cursor:pointer"><input type="checkbox" id="chk2" style="accent-color:var(--brand-primary)" /> Classification and group confirmed</label>
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.857rem;cursor:pointer"><input type="checkbox" id="chk3" style="accent-color:var(--brand-primary)" /> Machining and development status set</label>
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.857rem;cursor:pointer"><input type="checkbox" id="chk4" style="accent-color:var(--brand-primary)" /> Make/Buy and supplier defined</label>
-          </div>
         </div>
 
         <div style="display:flex;gap:12px;justify-content:flex-end">
@@ -1568,7 +1584,6 @@ function renderCreatePart(tc) {
 
   tc.querySelector('#cp-submit')?.addEventListener('click', async () => {
     const name = tc.querySelector('#cp-name')?.value?.trim();
-    const gstCode = tc.querySelector('#cp-gst')?.value?.trim();
     const [groupCode, subGroupCode] = String(tc.querySelector('#cp-group')?.value || '').split(':');
     const categoryCode = tc.querySelector('#cp-cat')?.value?.trim();
     const modelCode = tc.querySelector('#cp-model')?.value?.trim();
@@ -1577,9 +1592,7 @@ function renderCreatePart(tc) {
     const devStatusCode = tc.querySelector('#cp-dev-status')?.value?.trim();
     const unitOfMeasure = tc.querySelector('#cp-uom')?.value?.trim();
 
-    const failedChecks = ['chk1', 'chk2', 'chk3', 'chk4'].filter(id => !tc.querySelector(`#${id}`)?.checked);
     if (!name) return showToast('Part name is required.', 'error');
-    if (failedChecks.length) return showToast(`Complete pre-flight checklist (${failedChecks.length} items remaining).`, 'warning');
     if (!categoryCode || !modelCode || !groupCode || !subGroupCode) return showToast('Category, model, and group are required.', 'error');
 
     const supplierMode = supplierSelect?.value || 'na';
@@ -1612,7 +1625,7 @@ function renderCreatePart(tc) {
       makeBuy: Number(tc.querySelector('#cp-makebuy')?.value || 0),
       weight: Number(tc.querySelector('#cp-weight')?.value || 0),
       unitOfMeasure: unitOfMeasure || 'Each',
-      gstCode: gstCode || '',
+      gstCode: '',
       supplierName,
       supplierEmail,
       quantity: 1,
@@ -1627,7 +1640,7 @@ function renderCreatePart(tc) {
     try {
       const resp = await createPart(payload);
       console.log('[PART CREATE] Server response:', resp);
-      
+
       const targetBomId = tc.querySelector('#cp-bom-ref')?.value?.trim();
       if (targetBomId) {
         showToast(`Part ${generatedPartNumber} created and linked to BOM ${targetBomId}!`, 'success');

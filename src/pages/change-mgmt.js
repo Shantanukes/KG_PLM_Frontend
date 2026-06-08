@@ -15,6 +15,9 @@ export function renderChangeManagement(container) {
         <button class="btn btn-primary btn-sm" id="btn-new-ecr">
           <span class="material-icons-outlined" style="font-size:16px">add</span>Raise ECR
         </button>
+        <button class="btn btn-primary btn-sm" id="btn-new-ecn" style="margin-left: 8px;">
+          <span class="material-icons-outlined" style="font-size:16px">add</span>Raise ECN
+        </button>
       </div>
     </div>
 
@@ -24,6 +27,7 @@ export function renderChangeManagement(container) {
       <button class="tab-btn" data-tab="ecn-list">ECN List</button>
       <button class="tab-btn" data-tab="ecn-eng">ECN-Eng Log</button>
       <button class="tab-btn" data-tab="new-ecr">Raise ECR</button>
+      <button class="tab-btn" data-tab="new-ecn">Raise ECN</button>
     </div>
 
     <div id="change-tab-content"></div>
@@ -42,6 +46,11 @@ export function renderChangeManagement(container) {
     renderChangeTab(container.querySelector('#change-tab-content'), 'new-ecr');
   });
 
+  container.querySelector('#btn-new-ecn')?.addEventListener('click', () => {
+    container.querySelectorAll('#change-tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'new-ecn'));
+    renderChangeTab(container.querySelector('#change-tab-content'), 'new-ecn');
+  });
+
   container.querySelector('#btn-impact')?.addEventListener('click', () => {
     runImpactAnalysis();
   });
@@ -55,6 +64,7 @@ function renderChangeTab(tc, tab) {
   else if (tab === 'ecn-list') renderECNList(tc);
   else if (tab === 'ecn-eng') renderECNEng(tc);
   else if (tab === 'new-ecr') renderNewECRForm(tc);
+  else if (tab === 'new-ecn') renderNewECNForm(tc);
 }
 
 const KANBAN_DATA = {
@@ -581,4 +591,98 @@ function runImpactAnalysis() {
       <div style="padding:12px;background:var(--bg-muted);border-radius:var(--radius-md)"><div style="font-size:1.14rem;font-weight:700;color:#DC2626">2</div><div style="font-size:0.714rem;color:var(--text-tertiary)">High-Risk BOMs</div></div>
       <div style="padding:12px;background:var(--bg-muted);border-radius:var(--radius-md)"><div style="font-size:1.14rem;font-weight:700;color:#059669">₹145/unit</div><div style="font-size:0.714rem;color:var(--text-tertiary)">Cost Delta</div></div>
     </div>`, '');
+}
+
+function renderNewECNForm(tc) {
+  tc.innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title"><span class="material-icons-outlined">edit_note</span>Raise Engineering Change Notice (ECN)</div>
+      </div>
+      <div class="card-body">
+        <div class="grid-2" style="gap:20px">
+          <div class="form-group"><label class="form-label">Title <span style="color:#DC2626">*</span></label>
+            <input class="form-input" id="ecn-title" placeholder="Brief one-line description of the ECN" /></div>
+          
+          <div class="form-group"><label class="form-label">Effectivity Type <span style="color:#DC2626">*</span></label>
+            <select class="form-select" id="ecn-effectivity">
+              <option value="0">Serial Number Effectivity (0)</option>
+              <option value="1">Date Effectivity (1)</option>
+            </select></div>
+            
+          <div class="form-group"><label class="form-label">Effectivity Date</label>
+            <input type="datetime-local" class="form-input" id="ecn-date" /></div>
+
+          <div class="form-group"><label class="form-label">Affected Part IDs</label>
+            <input class="form-input" id="ecn-affected" placeholder="e.g. 101, 105" /></div>
+            
+          <div class="form-group" style="grid-column:1/-1"><label class="form-label">Description <span style="color:#DC2626">*</span></label>
+            <textarea class="form-input" id="ecn-description" rows="4" placeholder="Describe the change in detail..." style="resize:vertical"></textarea></div>
+            
+          <div class="form-group" style="grid-column:1/-1"><label class="form-label">Implementation Notes <span style="color:#DC2626">*</span></label>
+            <textarea class="form-input" id="ecn-notes" rows="3" placeholder="Provide implementation notes..." style="resize:vertical"></textarea></div>
+        </div>
+        <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px">
+          <button class="btn btn-outline" id="ecn-save-draft">Save Draft</button>
+          <button class="btn btn-primary" id="ecn-submit">
+            <span class="material-icons-outlined" style="font-size:16px">send</span>Submit ECN
+          </button>
+        </div>
+      </div>
+    </div>`;
+
+  tc.querySelector('#ecn-save-draft')?.addEventListener('click', () => showToast('ECN saved as draft.', 'info'));
+
+  tc.querySelector('#ecn-submit')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const title = tc.querySelector('#ecn-title')?.value;
+    const effectivityType = parseInt(tc.querySelector('#ecn-effectivity')?.value, 10);
+    let effectivityDate = tc.querySelector('#ecn-date')?.value;
+    const affectedPartIds = tc.querySelector('#ecn-affected')?.value;
+    const description = tc.querySelector('#ecn-description')?.value;
+    const implementationNotes = tc.querySelector('#ecn-notes')?.value;
+
+    if (!title || isNaN(effectivityType) || !description || !implementationNotes) {
+      return showToast('Please fill all required fields (*)', 'error');
+    }
+
+    if (effectivityDate) {
+      effectivityDate = new Date(effectivityDate).toISOString();
+    } else {
+      effectivityDate = new Date().toISOString();
+    }
+
+    const payload = {
+      title,
+      description,
+      effectivityType,
+      effectivityDate,
+      affectedPartIds,
+      implementationNotes
+    };
+
+    btn.disabled = true;
+    btn.textContent = 'Submitting...';
+
+    try {
+      const res = await authFetch('/api/Changes/ecn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        showToast('ECN submitted successfully!', 'success');
+        tc.querySelectorAll('.form-input').forEach(el => el.value = '');
+        tc.querySelectorAll('.form-select').forEach(el => el.selectedIndex = 0);
+      } else {
+        showToast('Failed to submit ECN. Server status ' + res.status, 'error');
+      }
+    } catch (err) {
+      console.error('Error submitting ECN:', err);
+      showToast('Network error while submitting ECN', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-icons-outlined" style="font-size:16px">send</span>Submit ECN';
+    }
+  });
 }

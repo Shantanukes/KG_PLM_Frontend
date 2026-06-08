@@ -157,3 +157,16 @@ export async function getAllBomsWithParts(bypassCache = false) {
 
 // camelCase alias — pages that import { createBom } resolve to the same function
 export const createBom = createBOM;
+
+// POST /api/BOM/{id}/link-parent — Link child BOM to a parent BOM
+export async function linkBomWithParent(childBomId, parentBOMId) {
+  const response = await authFetch(`/api/BOM/${childBomId}/link-parent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ parentBOMId })
+  });
+  let rawData = null;
+  try { rawData = await response.json(); } catch { rawData = null; }
+  if (!response.ok) throw new Error(getErrorMessageFromResponse(rawData, `Failed to link BOM with parent (${response.status})`));
+  return rawData;
+}

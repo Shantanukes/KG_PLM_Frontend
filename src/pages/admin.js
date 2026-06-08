@@ -40,24 +40,43 @@ export function renderAdmin(container) {
     showModal('Invite New User',
       `<div class="grid-2" style="gap:16px">
         <div class="form-group" style="grid-column:1/-1"><label class="form-label">Full Name <span style="color:#DC2626">*</span></label><input class="form-input" id="inv-name" placeholder="e.g. Suresh Iyer" /></div>
+        <div class="form-group" style="grid-column:1/-1"><label class="form-label">Employee ID <span style="color:#DC2626">*</span></label><input class="form-input" id="inv-empid" placeholder="e.g. KG-10045" /></div>
         <div class="form-group"><label class="form-label">Email Address <span style="color:#DC2626">*</span></label><input class="form-input" id="inv-email" type="email" placeholder="suresh.iyer@kineticgreen.com" /></div>
         <div class="form-group"><label class="form-label">Role / Access Profile</label>
-          <select class="form-select">
-            <option>Designer</option><option>Checker</option><option>COE Head</option><option>Project Manager</option><option>Quality Auditor</option><option>Super Admin</option>
+          <select class="form-select" id="inv-role">
+            <option value="0">None</option><option value="8">RnD Head</option><option value="7">Project Head</option><option value="6">Designer</option><option value="5">Checker</option><option value="4">COE Head</option><option value="3">Project Manager</option><option value="2">Quality Auditor</option><option value="1">Super Admin</option>
           </select></div>
         <div class="form-group"><label class="form-label">Department</label>
-          <select class="form-select"><option>R&D / Engineering</option><option>Quality</option><option>Manufacturing</option><option>Sourcing</option><option>IT / Systems</option></select></div>
+          <select class="form-select" id="inv-dept"><option value="1">R&D / Engineering</option><option value="2">Quality</option><option value="4">Manufacturing</option><option value="3">SEM</option><option value="5">IT / Systems</option></select></div>
        </div>`,
       `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
        <button class="btn btn-primary" id="send-invite">Send Invite</button>`
     );
     setTimeout(() => {
-      document.getElementById('send-invite')?.addEventListener('click', () => {
-        const name = document.getElementById('inv-name')?.value;
-        const email = document.getElementById('inv-email')?.value;
-        if (!name || !email) return showToast('Name and email are required', 'error');
-        document.querySelector('.modal-overlay')?.remove();
-        showToast(`Invite sent to ${email}. Account will be activated on first login.`, 'success');
+      document.getElementById('send-invite')?.addEventListener('click', async () => {
+        const name = document.getElementById('inv-name')?.value?.trim();
+        const empId = document.getElementById('inv-empid')?.value?.trim();
+        const email = document.getElementById('inv-email')?.value?.trim();
+        const role = parseInt(document.getElementById('inv-role')?.value ?? '0', 10);
+        const department = parseInt(document.getElementById('inv-dept')?.value ?? '1', 10);
+        if (!name || !email || !empId) return showToast('Full Name, Employee ID and Email are required', 'error');
+        try {
+          const res = await authFetch('/api/Members/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fullName: name, email, employeeId: empId, role, department })
+          });
+          document.querySelector('.modal-overlay')?.remove();
+          if (res.ok) {
+            showToast(`Invite sent to ${email}. Account will be activated on first login.`, 'success');
+          } else {
+            const errText = await res.text().catch(() => '');
+            showToast(`Failed to send invite. ${errText}`, 'error');
+          }
+        } catch (err) {
+          console.error('Error sending invite:', err);
+          showToast('Network error while sending invite.', 'error');
+        }
       });
     }, 50);
   });
@@ -146,10 +165,42 @@ function renderUsers(tc) {
 
       const openTeamModal = async (teamId) => {
         try {
-          const res = await authFetch('/api/Teams/' + teamId);
-          if (res.ok) {
+          const [res, memRes] = await Promise.all([
+            authFetch('/api/Teams/' + teamId),
+            authFetch('/api/Members')
+          ]);
+          if (res.ok && memRes.ok) {
             const members = await res.json();
             const membersList = Array.isArray(members) ? members : (members.members || [members]);
+
+            let rawAllMembers = await memRes.json();
+            let allMembers = [];
+            if (!Array.isArray(rawAllMembers)) {
+              const possibleArrayKeys = Object.keys(rawAllMembers).filter(k => Array.isArray(rawAllMembers[k]));
+              if (possibleArrayKeys.length > 0) {
+                allMembers = rawAllMembers[possibleArrayKeys[0]];
+              } else {
+                allMembers = [rawAllMembers];
+              }
+            } else {
+              allMembers = rawAllMembers;
+            }
+
+            const dMap = {
+              1: 'R&D / Engineering', 'R_AND_D_Engineering': 'R&D / Engineering', 'R&D / Engineering': 'R&D / Engineering',
+              2: 'Quality', 'Quality': 'Quality',
+              3: 'SEM', 'SEM': 'SEM',
+              4: 'Manufacturing', 'Manufacturing': 'Manufacturing',
+              5: 'IT / Systems', 'IT_Systems': 'IT / Systems', 'IT / Systems': 'IT / Systems'
+            };
+
+            const memberOptions = allMembers.map(m => {
+              const id = m.id || m.userId;
+              const name = m.fullName || m.FullName || m.name || m.Name || m.userName || m.UserName || 'Unknown';
+              let dept = m.department || m.Department || m.departmentId || m.DepartmentId;
+              dept = dMap[dept] || dept || 'No Department';
+              return `<option value="${id}">${name} - ${dept}</option>`;
+            }).join('');
 
             let membersHTML = '';
             if (membersList && membersList.length > 0 && membersList[0].userName) {
@@ -166,11 +217,15 @@ function renderUsers(tc) {
                       </tr>
                     </thead>
                     <tbody>
-                      ${membersList.map(m => `
+                      ${membersList.map(m => {
+                const rMap = { 0: 'None', 1: 'Super Admin', 2: 'Quality Auditor', 3: 'Project Manager', 4: 'COE Head', 5: 'Checker', 6: 'Designer', 7: 'Project Head', 8: 'RnD Head' };
+                const rName = rMap[m.role] !== undefined ? rMap[m.role] : m.role;
+                const roleDisplay = m.role !== undefined && m.role !== null ? `${rName} (${m.role})` : 'N/A';
+                return `
                         <tr style="border-bottom: 1px solid var(--bg-muted);">
                           <td style="padding: 10px;" class="font-medium">${m.userName || 'N/A'}</td>
                           <td style="padding: 10px;" class="text-sm">${m.userEmail || 'N/A'}</td>
-                          <td style="padding: 10px;"><span class="tag tag-green">${m.role || 'N/A'}</span></td>
+                          <td style="padding: 10px;"><span class="tag tag-green">${roleDisplay}</span></td>
                           <td style="padding: 10px;" class="text-xs text-secondary">${m.joinedAt ? new Date(m.joinedAt).toLocaleDateString() : 'N/A'}</td>
                           <td style="padding: 10px; text-align: right;">
                             <button class="btn btn-ghost btn-xs remove-member-btn" data-userid="${m.userId || m.id}" title="Remove Member" style="color:#DC2626">
@@ -178,7 +233,8 @@ function renderUsers(tc) {
                             </button>
                           </td>
                         </tr>
-                      `).join('')}
+                      `;
+              }).join('')}
                     </tbody>
                   </table>
                 </div>
@@ -191,14 +247,21 @@ function renderUsers(tc) {
               <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-light);">
                 <h4 style="margin-bottom: 12px; font-size: 14px; font-weight: 600; color: var(--text-primary);">Add New Member</h4>
                 <div style="display: flex; gap: 8px; align-items: center;">
-                  <input type="number" id="new-member-user-id" placeholder="User ID" class="form-input" style="flex: 1; padding: 6px 12px; min-width: 0;" />
+                  <select id="new-member-user-id" class="form-input" style="flex: 1; padding: 6px 12px; min-width: 0; min-height: 36px;">
+                    <option value="" disabled selected>Select User</option>
+                    ${memberOptions}
+                  </select>
                   <select id="new-member-role-id" class="form-input" style="flex: 1; padding: 6px 12px; min-width: 0; min-height: 36px;">
                     <option value="" disabled selected>Select Role</option>
-                    <option value="0">Designer</option>
-                    <option value="1">Checker</option>
-                    <option value="2">Project Manager</option>
-                    <option value="3">Project Head</option>
-                    <option value="4">RnD Head</option>
+                    <option value="0">None</option>
+                    <option value="8">RnD Head</option>
+                    <option value="7">Project Head</option>
+                    <option value="6">Designer</option>
+                    <option value="5">Checker</option>
+                    <option value="4">COE Head</option>
+                    <option value="3">Project Manager</option>
+                    <option value="2">Quality Auditor</option>
+                    <option value="1">Super Admin</option>
                   </select>
                   <button class="btn btn-primary" id="btn-add-member" style="white-space: nowrap;">Add Member</button>
                 </div>

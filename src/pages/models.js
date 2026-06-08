@@ -61,7 +61,7 @@ export function renderModels(container) {
         const name = document.getElementById('mdl-name')?.value;
         const code = document.getElementById('mdl-code')?.value;
         if (!name || !code) return showToast('Model name and code are required', 'error');
-        
+
         const btn = e.currentTarget;
         const originalText = btn.innerHTML;
         btn.innerHTML = 'Saving...';
@@ -204,8 +204,8 @@ function buildCatalogueCards(tc, models) {
   grid.innerHTML = models.map(m => {
     // Robustly determine 2-wheeler vs 3-wheeler for the filter
     const rawCatCode = (m.categoryCode || '').toUpperCase();
-    const rawCatLbl  = (m.categoryLabel || '').toLowerCase();
-    
+    const rawCatLbl = (m.categoryLabel || '').toLowerCase();
+
     let filterCat = '';
     if (rawCatCode === 'G' || rawCatLbl.includes('2-wheeler') || rawCatLbl.includes('two')) {
       filterCat = '2W';
@@ -213,11 +213,11 @@ function buildCatalogueCards(tc, models) {
       filterCat = '3W';
     }
 
-    const statusKey  = (m.status || 'production').toLowerCase();
-    const statusTag  = STATUS_TAG[statusKey]  || 'badge-draft';
-    const statusLbl  = STATUS_LABEL[statusKey] || m.status || '-';
-    const color      = m.colorHex || '#2563EB';
-    const icon       = filterCat === '2W' ? 'two_wheeler' : 'local_shipping';
+    const statusKey = (m.status || 'production').toLowerCase();
+    const statusTag = STATUS_TAG[statusKey] || 'badge-draft';
+    const statusLbl = STATUS_LABEL[statusKey] || m.status || '-';
+    const color = m.colorHex || '#2563EB';
+    const icon = filterCat === '2W' ? 'two_wheeler' : 'local_shipping';
 
     return `
     <div class="card model-card" data-cat="${filterCat}" style="cursor:pointer">

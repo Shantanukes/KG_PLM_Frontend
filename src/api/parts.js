@@ -65,6 +65,30 @@ export async function updatePart(id, payload) {
   return rawData;
 }
 
+export async function deletePart(id) {
+  const response = await authFetch(`/api/Parts/${id}`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+    }
+  });
+
+  if (!response.ok) {
+    let rawData;
+    try {
+      rawData = await response.json();
+    } catch {
+      rawData = null;
+    }
+    const fallback = `Part deletion failed (${response.status})`;
+    const message = rawData?.errors ? Object.values(rawData.errors).flat().join(' ') : getErrorMessageFromResponse(rawData, fallback);
+    throw new Error(message || fallback);
+  }
+
+  clearPartsCache();
+  return true;
+}
+
 export async function getParts(params = {}, bypassCache = false) {
   const qs = new URLSearchParams(params).toString();
   const cacheKey = qs || 'all';

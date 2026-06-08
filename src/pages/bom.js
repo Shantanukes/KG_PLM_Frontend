@@ -1,6 +1,6 @@
 import { showToast, showModal, navigateTo } from '../main.js';
 import { createPart, getParts, getPartById, getPartByNumber, updatePart } from '../api/parts.js';
-import { createBom, getBomTree, updateBomLine, deleteBomLine, getBomLines, getBomWhereUsed, getBomByTeamId, getBomParts, getAllBomsWithParts } from '../api/bom.js';
+import { createBom, getBomTree, updateBomLine, deleteBomLine, getBomLines, getBomWhereUsed, getBomByTeamId, getBomParts, getAllBomsWithParts, linkBomWithParent } from '../api/bom.js';
 
 // ─── Master Data from PartNo.xlsx ───────────────────────────
 // Column 1: Product Category
@@ -254,6 +254,9 @@ export function renderBOM(container) {
         <button class="btn btn-outline btn-sm" id="btn-compare-bom">
           <span class="material-icons-outlined" style="font-size:16px">compare_arrows</span>Compare BOMs
         </button>
+        <button class="btn btn-primary btn-sm" id="btn-link-bom" style="background:var(--brand-secondary); border-color:var(--brand-secondary);">
+          <span class="material-icons-outlined" style="font-size:16px">link</span>Link BOM
+        </button>
         <button class="btn btn-primary btn-sm" id="btn-new-bom">
           <span class="material-icons-outlined" style="font-size:16px">playlist_add</span>Create New BOM
         </button>
@@ -293,6 +296,10 @@ export function renderBOM(container) {
 
   container.querySelector('#btn-new-bom')?.addEventListener('click', () => {
     openCreateBomModal();
+  });
+
+  container.querySelector('#btn-link-bom')?.addEventListener('click', () => {
+    openLinkBomModal();
   });
 }
 
@@ -746,22 +753,10 @@ function renderBomNav(tc) {
       for (const k in PARTS) delete PARTS[k];
 
       if (Array.isArray(data) && data.length > 0) {
-        data.forEach(bom => {
-          BOM_TREE.push({
-            id: bom.bomNumber,
-            backendId: bom.id,
-            // parentId: null,
-            level: 0,
-            hasChildren: bom.parts && bom.parts.length > 0,
-            label: bom.description || bom.name || 'Assembly',
-            pn: bom.bomNumber,
-            statusKey: (bom.status || 'Draft').toLowerCase(),
-            qty: '1',
-            iconClass: 'assy',
-            icon: 'widgets',
-            expanded: true,
-          });
+        const bomMap = new Map();
+        data.forEach(bom => bomMap.set(bom.id, bom));
 
+        data.forEach(bom => {
           PARTS[bom.bomNumber] = {
             id: bom.id,
             backendId: bom.id,
@@ -784,10 +779,36 @@ function renderBomNav(tc) {
             icon: 'widgets',
             iconClass: 'assy',
             docs: [],
-            // Id: null,
-            // parentBOMId: bom.parentBOMId || null,
-            // parentBOMNumber: bom.parentBOMNumber || null,
           };
+        });
+
+        const childBomsMap = new Map();
+        data.forEach(bom => {
+          if (bom.parentBOMId && bomMap.has(bom.parentBOMId)) {
+            if (!childBomsMap.has(bom.parentBOMId)) childBomsMap.set(bom.parentBOMId, []);
+            childBomsMap.get(bom.parentBOMId).push(bom);
+          }
+        });
+
+        const processBomNode = (bom, level) => {
+          const childBoms = childBomsMap.get(bom.id) || [];
+          const hasChildren = (bom.parts && bom.parts.length > 0) || childBoms.length > 0;
+          
+          BOM_TREE.push({
+            id: bom.bomNumber,
+            backendId: bom.id,
+            level: level,
+            hasChildren: hasChildren,
+            label: bom.description || bom.name || 'Assembly',
+            pn: bom.bomNumber,
+            statusKey: (bom.status || 'Draft').toLowerCase(),
+            qty: '1',
+            iconClass: 'assy',
+            icon: 'widgets',
+            expanded: true,
+          });
+
+          childBoms.forEach(child => processBomNode(child, level + 1));
 
           if (Array.isArray(bom.parts)) {
             bom.parts.forEach(part => {
@@ -796,8 +817,7 @@ function renderBomNav(tc) {
                 id: uniqueNodeId,
                 partRefId: part.partNumber,
                 backendId: part.id,
-                //parentId: bom.bomNumber,
-                level: 1,
+                level: level + 1,
                 hasChildren: false,
                 label: part.name || 'Component Part',
                 pn: part.partNumber,
@@ -831,12 +851,14 @@ function renderBomNav(tc) {
                   icon: 'settings',
                   iconClass: 'part',
                   docs: [],
-                  //parentId: bom.bomNumber,
                 };
               }
             });
           }
-        });
+        };
+
+        const rootBoms = data.filter(bom => !bom.parentBOMId || !bomMap.has(bom.parentBOMId));
+        rootBoms.forEach(bom => processBomNode(bom, 0));
 
         selectedPartId = data[0].bomNumber;
         drawBomTree();
@@ -1500,16 +1522,28 @@ function openApiPartEditModal(p, onSaved) {
 }
 
 // ─── BOM Compare ─────────────────────────────────────────────
-function renderBomCompare(tc) {
+async function renderBomCompare(tc) {
+  tc.innerHTML = `<div style="padding: 20px; text-align: center;">Loading BOMs...</div>`;
+
+  let boms = [];
+  try {
+    boms = await getAllBomsWithParts();
+  } catch (err) {
+    console.error('Failed to load BOMs for comparison', err);
+  }
+
+  const items = Array.isArray(boms) ? boms : (boms?.items || []);
+  const optionsHtml = items.map(b => `<option value="${b.id}">${b.bomNumber || b.name || `BOM-${b.id}`} — ${b.description || 'No description'}</option>`).join('');
+
   tc.innerHTML = `
     <div class="card" style="margin-bottom:16px">
       <div class="card-body" style="padding:16px">
         <div style="display:flex;gap:16px;align-items:center">
           <div style="flex:1"><label class="form-label">BOM A</label>
-            <select class="form-select" id="bom-a"><option>ASSY-GA1-01-Z — E-Luna Go Rev A</option><option>ASSY-GA1-51-Z — Powertrain Rev A</option></select></div>
+            <select class="form-select" id="bom-a"><option value="">Select BOM A...</option>${optionsHtml}</select></div>
           <span class="material-icons-outlined" style="color:var(--text-tertiary);align-self:flex-end;padding-bottom:2px">compare_arrows</span>
           <div style="flex:1"><label class="form-label">BOM B</label>
-            <select class="form-select" id="bom-b"><option>ASSY-GA1-01-Z — E-Luna Pro Rev B</option><option>ASSY-GG1-01-Z — E-Luna Pro Rev A</option></select></div>
+            <select class="form-select" id="bom-b"><option value="">Select BOM B...</option>${optionsHtml}</select></div>
           <div style="align-self:flex-end"><button class="btn btn-primary btn-sm" id="run-compare">Compare</button></div>
         </div>
       </div>
@@ -1526,23 +1560,92 @@ function renderBomCompare(tc) {
       <div class="card-body no-pad">
         <table class="data-table">
           <thead><tr><th>Part Number</th><th>Name</th><th>BOM A Qty</th><th>BOM B Qty</th><th>BOM A Rev</th><th>BOM B Rev</th><th>Change</th></tr></thead>
-          <tbody>
-            <tr style="background:#ECFDF5"><td class="part-number">GA151002 1AZ</td><td>BLDC Hub Motor 350W 48V</td><td>—</td><td>1</td><td>—</td><td>Rev A</td><td><span class="badge badge-released badge-sm">ADDED</span></td></tr>
-            <tr style="background:#FEF2F2"><td class="part-number">GA151001 1AZ</td><td>BLDC Hub Motor 250W 48V</td><td>1</td><td>—</td><td>Rev A</td><td>—</td><td><span class="badge badge-rejected badge-sm">REMOVED</span></td></tr>
-            <tr style="background:#FFFBEB"><td class="part-number">GA152002 1AZ</td><td>BMS PCB 48V</td><td>1</td><td>1</td><td>Rev A</td><td>Rev B</td><td><span class="badge badge-review badge-sm">UPGRADED</span></td></tr>
-            <tr><td class="part-number">GA160001 1AZ</td><td>On-Board Charger 48V</td><td>1</td><td>1</td><td>Rev A</td><td>Rev A</td><td><span class="badge badge-draft badge-sm">NO CHANGE</span></td></tr>
-            <tr style="background:#FFFBEB"><td class="part-number">GA1080011AZ</td><td>Alloy Wheel 12"</td><td>2</td><td>2</td><td>Rev A</td><td>Rev B</td><td><span class="badge badge-review badge-sm">REV CHANGE</span></td></tr>
+          <tbody id="compare-tbody">
           </tbody>
         </table>
       </div>
     </div>`;
 
-  tc.querySelector('#run-compare')?.addEventListener('click', () => {
-    showToast('Running BOM comparison…', 'info');
-    setTimeout(() => {
+  tc.querySelector('#run-compare')?.addEventListener('click', async () => {
+    const bomAId = tc.querySelector('#bom-a').value;
+    const bomBId = tc.querySelector('#bom-b').value;
+    
+    if (!bomAId || !bomBId) return showToast('Please select two BOMs to compare.', 'warning');
+    if (bomAId === bomBId) return showToast('Please select different BOMs to compare.', 'warning');
+
+    const btn = tc.querySelector('#run-compare');
+    btn.disabled = true;
+    btn.textContent = 'Comparing...';
+
+    try {
+      showToast('Running BOM comparison...', 'info');
+      const [partsA, partsB] = await Promise.all([
+        getBomParts(bomAId),
+        getBomParts(bomBId)
+      ]);
+
+      const listA = Array.isArray(partsA) ? partsA : (partsA?.items || [partsA]);
+      const listB = Array.isArray(partsB) ? partsB : (partsB?.items || [partsB]);
+
+      const mapA = {};
+      listA.forEach(p => { if (p) mapA[p.partNumber || p.id] = p; });
+      const mapB = {};
+      listB.forEach(p => { if (p) mapB[p.partNumber || p.id] = p; });
+
+      const allPartIds = new Set([...Object.keys(mapA), ...Object.keys(mapB)]);
+      const diffs = [];
+
+      for (const pid of allPartIds) {
+        const partA = mapA[pid];
+        const partB = mapB[pid];
+        
+        if (partA && !partB) {
+          diffs.push({ part: partA, aQty: partA.quantity ?? 1, bQty: '—', aRev: partA.revisionLetter || '—', bRev: '—', type: 'REMOVED', style: 'background:#FEF2F2', badge: 'badge-rejected' });
+        } else if (!partA && partB) {
+          diffs.push({ part: partB, aQty: '—', bQty: partB.quantity ?? 1, aRev: '—', bRev: partB.revisionLetter || '—', type: 'ADDED', style: 'background:#ECFDF5', badge: 'badge-released' });
+        } else {
+          // Both have it
+          const qA = partA.quantity ?? 1;
+          const qB = partB.quantity ?? 1;
+          const rA = partA.revisionLetter || '—';
+          const rB = partB.revisionLetter || '—';
+          
+          if (qA !== qB) {
+            diffs.push({ part: partA, aQty: qA, bQty: qB, aRev: rA, bRev: rB, type: 'QTY CHANGE', style: 'background:#FFFBEB', badge: 'badge-review' });
+          } else if (rA !== rB) {
+            diffs.push({ part: partA, aQty: qA, bQty: qB, aRev: rA, bRev: rB, type: 'REV CHANGE', style: 'background:#FFFBEB', badge: 'badge-review' });
+          } else {
+            diffs.push({ part: partA, aQty: qA, bQty: qB, aRev: rA, bRev: rB, type: 'NO CHANGE', style: '', badge: 'badge-draft' });
+          }
+        }
+      }
+
+      const tbody = tc.querySelector('#compare-tbody');
+      if (diffs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center" style="padding: 20px;">No differences found.</td></tr>';
+      } else {
+        tbody.innerHTML = diffs.map(d => `
+          <tr style="${d.style}">
+            <td class="part-number">${d.part.partNumber || d.part.id || '-'}</td>
+            <td>${d.part.name || '-'}</td>
+            <td>${d.aQty}</td>
+            <td>${d.bQty}</td>
+            <td>${d.aRev}</td>
+            <td>${d.bRev}</td>
+            <td><span class="badge ${d.badge} badge-sm">${d.type}</span></td>
+          </tr>
+        `).join('');
+      }
+
       tc.querySelector('#compare-result').style.display = '';
-      showToast('BOM comparison complete. 3 differences found.', 'success');
-    }, 800);
+      showToast('BOM comparison complete.', 'success');
+    } catch (err) {
+      console.error('BOM Compare error', err);
+      showToast('Error comparing BOMs.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Compare';
+    }
   });
 }
 
@@ -1645,10 +1748,6 @@ function renderCreatePart(tc) {
             <input class="form-input" id="cp-weight" type="number" step="0.001" placeholder="0.000" />
           </div>
           <div class="form-group">
-            <label class="form-label">GST Code <span style="color:#DC2626">*</span></label>
-            <input class="form-input" id="cp-gst" placeholder="e.g. 87089900" />
-          </div>
-          <div class="form-group">
             <label class="form-label">Material / Grade</label>
             <input class="form-input" id="cp-material" placeholder="e.g. CRCA Steel IS:1079 Grade D" />
           </div>
@@ -1690,17 +1789,6 @@ function renderCreatePart(tc) {
         <div class="form-group" style="margin-top:8px">
           <label class="form-label">Description / Technical Notes</label>
           <textarea class="form-input" id="cp-desc" rows="3" placeholder="Additional technical specifications or notes…" style="resize:vertical"></textarea>
-        </div>
-
-        <div style="background:var(--bg-muted);border-radius:var(--radius-md);padding:14px 18px;margin:20px 0">
-          <div class="section-title" style="margin-bottom:10px">Pre-Flight Checklist</div>
-          <div style="display:flex;flex-direction:column;gap:6px">
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.857rem;cursor:pointer"><input type="checkbox" id="chk1" style="accent-color:var(--brand-primary)" /> Part name entered and verified</label>
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.857rem;cursor:pointer"><input type="checkbox" id="chk2" style="accent-color:var(--brand-primary)" /> Classification and group confirmed</label>
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.857rem;cursor:pointer"><input type="checkbox" id="chk3" style="accent-color:var(--brand-primary)" /> Machining and development status set</label>
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.857rem;cursor:pointer"><input type="checkbox" id="chk4" style="accent-color:var(--brand-primary)" /> Make/Buy and supplier defined</label>
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.857rem;cursor:pointer"><input type="checkbox" id="chk5" style="accent-color:var(--brand-primary)" /> GST code entered</label>
-          </div>
         </div>
 
         <div style="display:flex;gap:12px;justify-content:flex-end">
@@ -1782,7 +1870,6 @@ function renderCreatePart(tc) {
 
   tc.querySelector('#cp-submit')?.addEventListener('click', async () => {
     const name = tc.querySelector('#cp-name')?.value?.trim();
-    const gstCode = tc.querySelector('#cp-gst')?.value?.trim();
     const [groupCode, subGroupCode] = String(tc.querySelector('#cp-group')?.value || '').split(':');
     const categoryCode = tc.querySelector('#cp-cat')?.value?.trim();
     const modelCode = tc.querySelector('#cp-model')?.value?.trim();
@@ -1791,10 +1878,7 @@ function renderCreatePart(tc) {
     const devStatusCode = tc.querySelector('#cp-dev-status')?.value?.trim();
     const unitOfMeasure = tc.querySelector('#cp-uom')?.value?.trim();
 
-    const failedChecks = ['chk1', 'chk2', 'chk3', 'chk4', 'chk5'].filter(id => !tc.querySelector(`#${id}`)?.checked);
     if (!name) return showToast('Part name is required.', 'error');
-    if (failedChecks.length) return showToast(`Complete pre-flight checklist (${failedChecks.length} items remaining).`, 'warning');
-    if (!gstCode) return showToast('GST code is required.', 'error');
     if (!categoryCode || !modelCode || !groupCode || !subGroupCode) return showToast('Category, model, and group are required.', 'error');
 
     const supplierMode = supplierSelect?.value || 'na';
@@ -1824,7 +1908,7 @@ function renderCreatePart(tc) {
       makeBuy: Number(tc.querySelector('#cp-makebuy')?.value || 0),
       weight: Number(tc.querySelector('#cp-weight')?.value || 0),
       unitOfMeasure,
-      gstCode,
+      gstCode: '',
       material: tc.querySelector('#cp-material')?.value?.trim() || '',
       homologation: Number(tc.querySelector('#cp-homo')?.value || 0),
       supplierName,
@@ -1848,4 +1932,85 @@ function renderCreatePart(tc) {
     }
   });
   updatePN();
+}
+
+// ─── Link BOM Modal ───────────────────────────────────────────
+function openLinkBomModal() {
+  document.querySelector('.modal-overlay')?.remove();
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+  <div class="modal" style="width: 500px">
+    <div class="modal-header">
+      <div class="modal-title">Link Child BOM to Parent BOM</div>
+      <button class="modal-close btn-close-modal"><span class="material-icons-outlined">close</span></button>
+    </div>
+    <div class="modal-body">
+      <div style="background:rgba(59,130,246,0.1); border-left:3px solid var(--brand-primary); padding:12px; border-radius:4px; font-size:0.85rem; margin-bottom:16px; color:var(--text-secondary);">
+        Link an existing Assembly/BOM as a child line item to another existing Parent BOM.
+      </div>
+      <div class="form-group">
+        <label class="form-label">Parent BOM <span style="color:#DC2626">*</span></label>
+        <input class="form-input" id="link-parent-bom" list="link-bom-datalist" placeholder="Select or type Parent BOM..." />
+      </div>
+      <div class="form-group" style="margin-top:16px">
+        <label class="form-label">Child BOM <span style="color:#DC2626">*</span></label>
+        <input class="form-input" id="link-child-bom" list="link-bom-datalist" placeholder="Select or type Child BOM..." />
+      </div>
+      <datalist id="link-bom-datalist"></datalist>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-close-modal">Cancel</button>
+      <button class="btn btn-primary" id="btn-submit-link-bom" style="background:var(--brand-secondary); border-color:var(--brand-secondary);">Link BOMs</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+
+  // Populate datalist
+  const datalist = modal.querySelector('#link-bom-datalist');
+  const bomMap = {};
+  getAllBomsWithParts().then(boms => {
+    const items = Array.isArray(boms) ? boms : (boms?.items || []);
+    items.forEach(b => {
+      const label = `${b.name || b.bomNumber || '-'}${b.description ? ' — ' + b.description : ''}`;
+      bomMap[label] = b.id;
+      const opt = document.createElement('option');
+      opt.value = label;
+      datalist?.appendChild(opt);
+    });
+  }).catch(() => { /* silently fail */ });
+
+  setTimeout(() => {
+    modal.querySelectorAll('.btn-close-modal').forEach(b => b.addEventListener('click', () => modal.remove()));
+    modal.querySelector('#link-parent-bom')?.focus();
+
+    modal.querySelector('#btn-submit-link-bom')?.addEventListener('click', async (e) => {
+      const btn = e.target;
+      const parentVal = modal.querySelector('#link-parent-bom').value.trim();
+      const childVal = modal.querySelector('#link-child-bom').value.trim();
+
+      const parentId = bomMap[parentVal];
+      const childId = bomMap[childVal];
+
+      if (!parentId) return showToast('Please select a valid Parent BOM.', 'error');
+      if (!childId) return showToast('Please select a valid Child BOM.', 'error');
+      if (parentId === childId) return showToast('Parent and Child BOMs cannot be the same.', 'error');
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="material-icons-outlined" style="font-size:16px">autorenew</span>Linking...';
+
+      try {
+        await linkBomWithParent(childId, parentId);
+        showToast('BOMs successfully linked!', 'success');
+        modal.remove();
+        // Trigger a refresh if on BOM Navigator
+        const refreshBtn = document.querySelector('#btn-refresh-bom');
+        if (refreshBtn) refreshBtn.click();
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : 'Failed to link BOMs', 'error');
+        btn.disabled = false;
+        btn.innerHTML = 'Link BOMs';
+      }
+    });
+  }, 50);
 }

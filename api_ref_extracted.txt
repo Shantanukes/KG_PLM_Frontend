@@ -234,7 +234,7 @@ Employee code (max 50 chars)
 4=COEHead, 5=Checker, 6=Designer, 7=ProjectHead, 
 8=RnDHead 
 
-1=R&D Engineering, 2=Quality, 3=Procurement, 
+1=R&D Engineering, 2=Quality, 3=SEM, 
 4=Manufacturing, 5=IT Systems 
 
 Success Response  200 OK 
@@ -2305,7 +2305,7 @@ TaskStatusEnum
 
 Department 
 
-1=R&D Engineering, 2=Quality, 3=Procurement, 4=Manufacturing, 5=IT Systems 
+1=R&D Engineering, 2=Quality, 3=SEM, 4=Manufacturing, 5=IT Systems 
 
  
 

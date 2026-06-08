@@ -437,7 +437,7 @@ function init() {
 }
 
 function initNextGenInteractions() {
-  document.addEventListener('mousedown', function(e) {
+  document.addEventListener('mousedown', function (e) {
     const target = e.target.closest('.btn, .nav-item, .ripple-element');
     if (!target) return;
     const rect = target.getBoundingClientRect();
@@ -451,7 +451,7 @@ function initNextGenInteractions() {
     setTimeout(() => { ripple.remove(); }, 600);
   });
 
-  document.addEventListener('mousemove', function(e) {
+  document.addEventListener('mousemove', function (e) {
     document.querySelectorAll('.magnetic').forEach(btn => {
       const rect = btn.getBoundingClientRect();
       const x = e.clientX - rect.left - rect.width / 2;
@@ -701,7 +701,7 @@ function openProfileModal() {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:99999;backdrop-filter:blur(4px);';
-  
+
   overlay.innerHTML = `
     <div class="modal-content card fade-in" style="width: 400px; padding: 24px; border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,0.2);">
       <h3 style="margin: 0 0 16px 0;">Edit Profile</h3>
@@ -713,9 +713,29 @@ function openProfileModal() {
         <label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">Employee ID</label>
         <input type="text" id="prof-empid" class="form-input" style="width:100%;" placeholder="e.g. EMP-101" />
       </div>
+      <div class="form-group" style="margin-bottom: 12px;">
+        <label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">Role / Access Profile <span style="color:#DC2626">*</span></label>
+        <select class="form-select" id="prof-role" style="width:100%;">
+          <option value="0">None</option>
+          <option value="8">RnD Head</option>
+          <option value="7">Project Head</option>
+          <option value="6">Designer</option>
+          <option value="5">Checker</option>
+          <option value="4">COE Head</option>
+          <option value="3">Project Manager</option>
+          <option value="2">Quality Auditor</option>
+          <option value="1">Super Admin</option>
+        </select>
+      </div>
       <div class="form-group" style="margin-bottom: 24px;">
-        <label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">Department ID <span style="color:#DC2626">*</span></label>
-        <input type="number" id="prof-dept" class="form-input" style="width:100%;" value="1" />
+        <label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">Department <span style="color:#DC2626">*</span></label>
+        <select class="form-select" id="prof-dept" style="width:100%;">
+          <option value="1">R&D / Engineering</option>
+          <option value="2">Quality</option>
+          <option value="4">Manufacturing</option>
+          <option value="3">SEM</option>
+          <option value="5">IT / Systems</option>
+        </select>
       </div>
       <div style="display: flex; justify-content: flex-end; gap: 8px;">
         <button class="btn btn-outline" id="prof-cancel">Cancel</button>
@@ -726,12 +746,13 @@ function openProfileModal() {
   document.body.appendChild(overlay);
 
   document.getElementById('prof-cancel').addEventListener('click', () => overlay.remove());
-  
+
   document.getElementById('prof-save').addEventListener('click', async (e) => {
     const btn = e.currentTarget;
     const fullName = document.getElementById('prof-fullname').value.trim();
     const empId = document.getElementById('prof-empid').value.trim() || null;
     const dept = parseInt(document.getElementById('prof-dept').value, 10);
+    const role = parseInt(document.getElementById('prof-role').value, 10);
 
     if (!fullName || isNaN(dept)) {
       showToast('Full name and valid department ID are required.', 'warning');
@@ -741,7 +762,8 @@ function openProfileModal() {
     const payload = {
       fullName,
       employeeId: empId,
-      department: dept
+      department: dept,
+      role: role
     };
 
     btn.disabled = true;
@@ -757,7 +779,7 @@ function openProfileModal() {
         showToast('Profile updated successfully!', 'success');
         state.user.name = fullName;
         localStorage.setItem(SESSION_USER_KEY, JSON.stringify(state.user));
-        
+
         // Update avatars safely
         const initials = fullName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
         document.querySelectorAll('.user-avatar-sm, .user-avatar').forEach(el => {
@@ -766,7 +788,7 @@ function openProfileModal() {
         document.querySelectorAll('.user-name').forEach(el => {
           el.textContent = fullName;
         });
-        
+
         overlay.remove();
       } else {
         showToast('Failed to update profile. Status ' + res.status, 'error');
@@ -788,8 +810,8 @@ function handleKeyboard(e) {
   if ((e.ctrlKey || e.metaKey) && e.key === 'f') { e.preventDefault(); document.getElementById('global-search')?.focus(); }
   if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); navigateTo('bom'); }
   if ((e.ctrlKey || e.metaKey) && e.key === 'e') { e.preventDefault(); navigateTo('change-mgmt'); }
-  if ((e.ctrlKey || e.metaKey) && e.key === 'k') { 
-    e.preventDefault(); 
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
     const palette = document.getElementById('cmd-palette');
     if (palette) {
       palette.classList.add('active');
@@ -822,7 +844,7 @@ function initCommandPalette() {
     resultsContainer.innerHTML = '';
     const q = query.toLowerCase();
     const filtered = demoResults.filter(r => r.label.toLowerCase().includes(q));
-    
+
     if (filtered.length === 0) {
       resultsContainer.innerHTML = '<div style="padding:16px;color:var(--text-tertiary);text-align:center;">No results found</div>';
       return;
@@ -842,7 +864,7 @@ function initCommandPalette() {
   }
 
   input.addEventListener('input', (e) => renderResults(e.target.value));
-  
+
   palette.addEventListener('click', (e) => {
     if (e.target === palette) {
       palette.classList.remove('active');
