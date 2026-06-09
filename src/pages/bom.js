@@ -1,4 +1,4 @@
-import { showToast, showModal, navigateTo } from '../main.js';
+import { showToast, showModal, navigateTo, getCurrentUserRole } from '../main.js';
 import { createPart, getParts, getPartById, getPartByNumber, updatePart } from '../api/parts.js';
 import { createBom, getBomTree, updateBomLine, deleteBomLine, getBomLines, getBomWhereUsed, getBomByTeamId, getBomParts, getAllBomsWithParts, linkBomWithParent } from '../api/bom.js';
 
@@ -254,12 +254,14 @@ export function renderBOM(container) {
         <button class="btn btn-outline btn-sm" id="btn-compare-bom">
           <span class="material-icons-outlined" style="font-size:16px">compare_arrows</span>Compare BOMs
         </button>
+        ${!(getCurrentUserRole().toLowerCase() === 'designer' || getCurrentUserRole() === '6') ? `
         <button class="btn btn-primary btn-sm" id="btn-link-bom" style="background:var(--brand-secondary); border-color:var(--brand-secondary);">
           <span class="material-icons-outlined" style="font-size:16px">link</span>Link BOM
         </button>
         <button class="btn btn-primary btn-sm" id="btn-new-bom">
           <span class="material-icons-outlined" style="font-size:16px">playlist_add</span>Create New BOM
         </button>
+        ` : ''}
       </div>
     </div>
 

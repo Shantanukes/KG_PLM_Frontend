@@ -1,5 +1,5 @@
 import { showToast, showModal, navigateTo } from '../main.js';
-import { assignWorkflow, fetchWorkflows, authFetch } from '../api/index.js';
+import { assignWorkflow, fetchWorkflows, fetchCurrentApprovalStage, fetchPendingApprovals, approvePartNumber, rejectPartNumber, approveDrawing, rejectDrawing, authFetch } from '../api/index.js';
 
 const RUNTIME_KEY = 'kg_plm_runtime';
 const SESSION_USER_KEY = 'kg_plm_session_user';
@@ -7,9 +7,9 @@ const SESSION_USER_KEY = 'kg_plm_session_user';
 function getCurrentUserName() {
   try {
     const sessionUser = JSON.parse(localStorage.getItem(SESSION_USER_KEY) || '{}');
-    return sessionUser?.name || 'Rohit Agarwal';
+    return sessionUser?.name || 'shantanu';
   } catch {
-    return 'Rohit Agarwal';
+    return 'shantanu';
   }
 }
 
@@ -149,7 +149,7 @@ export function renderWorkflows(container) {
 
     <div class="tabs" id="wf-tabs">
       <button class="tab-btn active" data-tab="my">My Tasks</button>
-      <button class="tab-btn" data-tab="progress">In-Progress</button>
+      <button class="tab-btn" data-tab="progress">Pending</button>
       <button class="tab-btn" data-tab="completed">Completed</button>
     </div>
 
@@ -303,7 +303,7 @@ async function renderMyTasks(tc) {
                 <td>${t.started}</td>
                 <td style="font-family:var(--font-mono); font-size:0.857rem;">${t.ref}</td>
                 <td>
-                  ${t.type === 'Part' ? `<button class="btn btn-outline btn-xs view-stage-btn" data-id="${t.entityId}">View Stage</button>` : ''}
+                  ${(t.type === 'Part' || t.type === 'PartNumber' || t.type?.toLowerCase() === 'drawing') ? `<button class="btn btn-outline btn-xs view-stage-btn" data-id="${t.entityId}" data-type="${t.type}">View Stage</button>` : ''}
                 </td>
               </tr>`).join('') : '<tr><td colspan="8" class="text-center text-secondary py-4" style="text-align: center;">No pending tasks</td></tr>'}
           </tbody>
@@ -315,7 +315,7 @@ async function renderMyTasks(tc) {
     btn.addEventListener('click', async (e) => {
       const entityId = e.target.dataset.id;
       if (!entityId || entityId === 'undefined') return showToast('Entity ID not found', 'error');
-      
+
       const prevText = e.target.textContent;
       e.target.textContent = 'Loading...';
       e.target.disabled = true;
@@ -324,15 +324,81 @@ async function renderMyTasks(tc) {
         const res = await authFetch('/api/Parts/' + entityId + '/current-approval-stage');
         if (res.ok) {
           const data = await res.json();
-          showModal('Current Approval Stage',
+          const itemType = e.target.dataset.type;
+          const resolvedType = data.approvalType || itemType;
+          const isApprovable = resolvedType === 'PartNumber' || resolvedType?.toLowerCase() === 'drawing';
+
+          const overlay = showModal('Current Approval Stage',
             `<div style="font-family:var(--font-mono); font-size:14px; line-height: 1.6; padding: 10px;">
-               <div style="margin-bottom: 12px;"><strong>Approval Type:</strong> ${data.approvalType || 'N/A'}</div>
+               <div style="margin-bottom: 12px;"><strong>Approval Type:</strong> ${resolvedType || 'N/A'}</div>
                <div style="margin-bottom: 12px;"><strong>Current Stage:</strong> <span class="badge" style="background:#F59E0B;color:#fff;">${data.currentApprovalStage || 'N/A'}</span></div>
                <div style="margin-bottom: 12px;"><strong>Assigned To:</strong> ${data.name || 'N/A'}</div>
                <div><strong>Role:</strong> ${data.role || 'N/A'}</div>
+               ${isApprovable ? `
+                 <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border-light);" />
+                 <div class="form-group" style="margin-bottom: 12px;">
+                   <label class="form-label">Comments</label>
+                   <textarea class="form-input" id="stage-comments" rows="2" placeholder="Enter approval/rejection comments..."></textarea>
+                 </div>
+                 <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                   <input type="checkbox" id="stage-revert-designer" />
+                   <label for="stage-revert-designer" style="font-size: 13px;">Revert to Designer (for Reject only)</label>
+                 </div>
+               ` : ''}
              </div>`,
-            `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Close</button>`
+            `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Close</button>
+             ${isApprovable ? `
+               <button class="btn btn-danger" id="reject-stage-btn">Reject</button>
+               <button class="btn btn-primary" id="approve-stage-btn">Approve</button>
+             ` : ''}`
           );
+
+          if (isApprovable) {
+            overlay.querySelector('#approve-stage-btn')?.addEventListener('click', async (btnEv) => {
+              const comments = overlay.querySelector('#stage-comments')?.value?.trim() || '';
+              const btn = btnEv.currentTarget;
+              btn.disabled = true;
+              btn.textContent = 'Approving...';
+              try {
+                if (resolvedType === 'PartNumber') {
+                  await approvePartNumber(entityId, { comments });
+                } else {
+                  await approveDrawing(entityId, { comments, revertToDesigner: "" });
+                }
+                showToast('Approved successfully', 'success');
+                overlay.remove();
+                const activeTab = document.querySelector('#wf-tabs .tab-btn.active')?.dataset.tab;
+                if (activeTab) renderWFTab(document.querySelector('#wf-tab-content'), activeTab);
+              } catch (e) {
+                showToast('Failed to approve', 'error');
+                btn.disabled = false;
+                btn.textContent = 'Approve';
+              }
+            });
+
+            overlay.querySelector('#reject-stage-btn')?.addEventListener('click', async (btnEv) => {
+              const comments = overlay.querySelector('#stage-comments')?.value?.trim() || '';
+              const revertToDesigner = overlay.querySelector('#stage-revert-designer')?.checked || false;
+              const btn = btnEv.currentTarget;
+              btn.disabled = true;
+              btn.textContent = 'Rejecting...';
+              try {
+                if (resolvedType === 'PartNumber') {
+                  await rejectPartNumber(entityId, { comments, revertToDesigner });
+                } else {
+                  await rejectDrawing(entityId, { comments, revertToDesigner });
+                }
+                showToast('Rejected successfully', 'success');
+                overlay.remove();
+                const activeTab = document.querySelector('#wf-tabs .tab-btn.active')?.dataset.tab;
+                if (activeTab) renderWFTab(document.querySelector('#wf-tab-content'), activeTab);
+              } catch (e) {
+                showToast('Failed to reject', 'error');
+                btn.disabled = false;
+                btn.textContent = 'Reject';
+              }
+            });
+          }
         } else {
           showToast('Failed to fetch approval stage', 'error');
         }
@@ -347,33 +413,31 @@ async function renderMyTasks(tc) {
 }
 
 async function renderInProgress(tc) {
-  tc.innerHTML = '<div style="padding: 20px; text-align: center;">Loading in-progress workflows...</div>';
+  tc.innerHTML = '<div style="padding: 20px; text-align: center;">Loading Pending workflows...</div>';
   let tasks = [];
   try {
-    const apiData = await fetchWorkflows();
+    const apiData = await fetchPendingApprovals();
     const fetchedTasks = Array.isArray(apiData) ? apiData : (apiData?.items || []);
 
-    const pendingTasks = fetchedTasks.filter(t => t.status !== 'Completed');
-
-    tasks = pendingTasks.map(t => {
+    tasks = fetchedTasks.map(t => {
       return {
-        id: t.id ? `WF-${t.id}` : `WF-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
-        subject: t.title || 'Untitled Task',
-        type: t.entityType || 'Workflow',
-        step: t.status || 'Pending',
-        assignee: t.assignedUserName || 'System',
+        id: t.approvalId ? `APP-${t.approvalId}` : `WF-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+        subject: `Review ${t.approvalType || 'Approval'}: ${t.partName || ''} — ${t.stage || ''}`,
+        type: t.approvalType || 'Workflow',
+        step: t.stage || 'Pending',
+        assignee: 'Me',
         started: t.createdAt ? new Date(t.createdAt).toLocaleDateString() : 'N/A',
-        ref: t.entityReference || '-',
-        entityId: t.entityId
+        ref: t.partNumber || '-',
+        entityId: t.partId
       };
     });
   } catch (err) {
-    console.error('Failed to load in-progress workflows', err);
+    console.error('Failed to load Pending workflows', err);
   }
 
   tc.innerHTML = `
     <div class="card">
-      <div class="card-header"><div class="card-title">In-Progress Workflows</div></div>
+      <div class="card-header"><div class="card-title">Pending Workflows</div></div>
       <div class="card-body no-pad">
         <table class="data-table">
           <thead><tr><th>Workflow ID</th><th>Subject</th><th>Type</th><th>Current Step</th><th>Assignee</th><th>Started</th><th>Part Ref</th><th>Action</th></tr></thead>
@@ -389,10 +453,10 @@ async function renderInProgress(tc) {
                 <td style="font-family:var(--font-mono); font-size:0.857rem;">${t.ref}</td>
                 <td>
                   <button class="btn btn-outline btn-xs view-wf-btn" data-id="${t.id}" style="margin-right:4px;">View</button>
-                  ${t.type === 'Part' ? `<button class="btn btn-outline btn-xs view-stage-btn" data-id="${t.entityId}">View Stage</button>` : ''}
+                  ${(t.type === 'Part' || t.type === 'PartNumber' || t.type?.toLowerCase() === 'drawing') ? `<button class="btn btn-outline btn-xs view-stage-btn" data-id="${t.entityId}" data-type="${t.type}">View Stage</button>` : ''}
                 </td>
               </tr>
-            `).join('') : '<tr><td colspan="8" class="text-center text-secondary py-4" style="text-align: center;">No in-progress workflows</td></tr>'}
+            `).join('') : '<tr><td colspan="8" class="text-center text-secondary py-4" style="text-align: center;">No Pending workflows</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -406,7 +470,7 @@ async function renderInProgress(tc) {
     btn.addEventListener('click', async (e) => {
       const entityId = e.target.dataset.id;
       if (!entityId || entityId === 'undefined') return showToast('Entity ID not found', 'error');
-      
+
       const prevText = e.target.textContent;
       e.target.textContent = 'Loading...';
       e.target.disabled = true;
@@ -415,15 +479,81 @@ async function renderInProgress(tc) {
         const res = await authFetch('/api/Parts/' + entityId + '/current-approval-stage');
         if (res.ok) {
           const data = await res.json();
-          showModal('Current Approval Stage',
+          const itemType = e.target.dataset.type;
+          const resolvedType = data.approvalType || itemType;
+          const isApprovable = resolvedType === 'PartNumber' || resolvedType?.toLowerCase() === 'drawing';
+
+          const overlay = showModal('Current Approval Stage',
             `<div style="font-family:var(--font-mono); font-size:14px; line-height: 1.6; padding: 10px;">
-               <div style="margin-bottom: 12px;"><strong>Approval Type:</strong> ${data.approvalType || 'N/A'}</div>
+               <div style="margin-bottom: 12px;"><strong>Approval Type:</strong> ${resolvedType || 'N/A'}</div>
                <div style="margin-bottom: 12px;"><strong>Current Stage:</strong> <span class="badge" style="background:#F59E0B;color:#fff;">${data.currentApprovalStage || 'N/A'}</span></div>
                <div style="margin-bottom: 12px;"><strong>Assigned To:</strong> ${data.name || 'N/A'}</div>
                <div><strong>Role:</strong> ${data.role || 'N/A'}</div>
+               ${isApprovable ? `
+                 <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border-light);" />
+                 <div class="form-group" style="margin-bottom: 12px;">
+                   <label class="form-label">Comments</label>
+                   <textarea class="form-input" id="stage-comments" rows="2" placeholder="Enter approval/rejection comments..."></textarea>
+                 </div>
+                 <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                   <input type="checkbox" id="stage-revert-designer" />
+                   <label for="stage-revert-designer" style="font-size: 13px;">Revert to Designer (for Reject only)</label>
+                 </div>
+               ` : ''}
              </div>`,
-            `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Close</button>`
+            `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Close</button>
+             ${isApprovable ? `
+               <button class="btn btn-danger" id="reject-stage-btn">Reject</button>
+               <button class="btn btn-primary" id="approve-stage-btn">Approve</button>
+             ` : ''}`
           );
+
+          if (isApprovable) {
+            overlay.querySelector('#approve-stage-btn')?.addEventListener('click', async (btnEv) => {
+              const comments = overlay.querySelector('#stage-comments')?.value?.trim() || '';
+              const btn = btnEv.currentTarget;
+              btn.disabled = true;
+              btn.textContent = 'Approving...';
+              try {
+                if (resolvedType === 'PartNumber') {
+                  await approvePartNumber(entityId, { comments });
+                } else {
+                  await approveDrawing(entityId, { comments, revertToDesigner: "" });
+                }
+                showToast('Approved successfully', 'success');
+                overlay.remove();
+                const activeTab = document.querySelector('#wf-tabs .tab-btn.active')?.dataset.tab;
+                if (activeTab) renderWFTab(document.querySelector('#wf-tab-content'), activeTab);
+              } catch (e) {
+                showToast('Failed to approve', 'error');
+                btn.disabled = false;
+                btn.textContent = 'Approve';
+              }
+            });
+
+            overlay.querySelector('#reject-stage-btn')?.addEventListener('click', async (btnEv) => {
+              const comments = overlay.querySelector('#stage-comments')?.value?.trim() || '';
+              const revertToDesigner = overlay.querySelector('#stage-revert-designer')?.checked || false;
+              const btn = btnEv.currentTarget;
+              btn.disabled = true;
+              btn.textContent = 'Rejecting...';
+              try {
+                if (resolvedType === 'PartNumber') {
+                  await rejectPartNumber(entityId, { comments, revertToDesigner });
+                } else {
+                  await rejectDrawing(entityId, { comments, revertToDesigner });
+                }
+                showToast('Rejected successfully', 'success');
+                overlay.remove();
+                const activeTab = document.querySelector('#wf-tabs .tab-btn.active')?.dataset.tab;
+                if (activeTab) renderWFTab(document.querySelector('#wf-tab-content'), activeTab);
+              } catch (e) {
+                showToast('Failed to reject', 'error');
+                btn.disabled = false;
+                btn.textContent = 'Reject';
+              }
+            });
+          }
         } else {
           showToast('Failed to fetch approval stage', 'error');
         }
