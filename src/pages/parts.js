@@ -1478,6 +1478,14 @@ function renderCreatePart(tc) {
             </select>
           </div>
           <div class="form-group">
+            <label class="form-label">EE Release</label>
+            <select class="form-select" id="cp-ee-release">
+              <option value="0">Sample</option>
+              <option value="1">Proto</option>
+              <option value="2">Production</option>
+            </select>
+          </div>
+          <div class="form-group">
             <label class="form-label">Homologation Required</label>
             <select class="form-select" id="cp-homo"><option value="0">No</option><option value="1">Yes</option></select>
           </div>
@@ -1649,6 +1657,7 @@ function renderCreatePart(tc) {
       supplierEmail,
       quantity: Number(tc.querySelector('#cp-quantity')?.value || 1),
       releaseFlag: Number(releaseFlagStr),
+      eeRelease: Number(tc.querySelector('#cp-ee-release')?.value || 0),
       homologationStatus: Number(tc.querySelector('#cp-homo')?.value || 0)
     };
 

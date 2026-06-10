@@ -151,6 +151,7 @@ export function renderWorkflows(container) {
       <button class="tab-btn active" data-tab="my">My Tasks</button>
       <button class="tab-btn" data-tab="progress">Pending</button>
       <button class="tab-btn" data-tab="completed">Completed</button>
+      <button class="tab-btn" data-tab="history">History</button>
     </div>
 
     <div id="wf-tab-content"></div>
@@ -245,6 +246,7 @@ async function renderWFTab(tc, tab) {
   if (tab === 'my') await renderMyTasks(tc);
   else if (tab === 'progress') await renderInProgress(tc);
   else if (tab === 'completed') renderCompleted(tc);
+  else if (tab === 'history') renderHistory(tc);
 }
 
 async function renderMyTasks(tc) {
@@ -576,6 +578,21 @@ function renderCompleted(tc) {
           <thead><tr><th>Workflow ID</th><th>Subject</th><th>Type</th><th>Completed</th><th>Cycle Time</th><th>Result</th></tr></thead>
           <tbody>
             <tr><td colspan="6" class="text-center text-secondary py-4" style="text-align: center;">No completed workflows</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function renderHistory(tc) {
+  tc.innerHTML = `
+    <div class="card">
+      <div class="card-header"><div class="card-title">Workflow History</div></div>
+      <div class="card-body no-pad">
+        <table class="data-table">
+          <thead><tr><th>Workflow ID</th><th>Subject</th><th>Type</th><th>Status</th><th>Date</th></tr></thead>
+          <tbody>
+            <tr><td colspan="5" class="text-center text-secondary py-4" style="text-align: center;">No history available</td></tr>
           </tbody>
         </table>
       </div>
