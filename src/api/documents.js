@@ -28,7 +28,7 @@ export async function getDocuments() {
 }
 
 export async function uploadDocument(formData) {
-  const response = await authFetch('/api/documents/upload', {
+  const response = await authFetch('/api/Documents/upload', {
     method: 'POST',
     body: formData,
   });

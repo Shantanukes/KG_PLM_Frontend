@@ -1,5 +1,5 @@
 import { showToast, showModal, navigateTo } from '../main.js';
-import { assignWorkflow, fetchWorkflows, fetchCurrentApprovalStage, fetchPendingApprovals, approvePartNumber, rejectPartNumber, approveDrawing, rejectDrawing, authFetch, fetchPartApprovalHistory, fetchDesignerTasks } from '../api/index.js';
+import { assignWorkflow, fetchWorkflows, fetchCurrentApprovalStage, fetchPendingApprovals, approvePartNumber, rejectPartNumber, approveDrawing, rejectDrawing, authFetch, fetchPartApprovalHistory, fetchDesignerTasks, getPartById, updatePart } from '../api/index.js';
 
 const RUNTIME_KEY = 'kg_plm_runtime';
 const SESSION_USER_KEY = 'kg_plm_session_user';
@@ -293,15 +293,22 @@ async function renderMyTasks(tc) {
 
     const tableRows = designerTasks.length ? designerTasks.map(t => {
       const formattedDate = t.createdAt ? new Date(t.createdAt).toLocaleDateString() : 'N/A';
+      const commentText = t.rejectionComments || '';
+      const isApproved = commentText.toLowerCase().includes('approved');
+      const commentColor = isApproved ? '#10B981' : '#EF4444';
       return `
         <tr>
           <td style="font-family:var(--font-mono);font-weight:600;">${t.partNumber || ''}</td>
           <td><span class="tag">${t.taskType || ''}</span></td>
           <td style="max-width:280px;white-space:normal;line-height:1.4;">${t.description || ''}</td>
-          <td style="max-width:280px;white-space:normal;line-height:1.4;color:#EF4444;">${t.rejectionComments || ''}</td>
+          <td style="max-width:280px;white-space:normal;line-height:1.4;color:${commentColor};">${commentText}</td>
           <td>${formattedDate}</td>
           <td>
-            <button class="btn btn-outline btn-xs" onclick="window.location.hash='#/parts/${t.partId}'">View Part</button>
+            ${['UploadDrawing', 'ReUploadDrawing'].includes(t.taskType)
+              ? `<button class="btn btn-primary btn-xs nav-upload-btn" data-part="${t.partNumber || t.partId}">Upload Drawing</button>`
+              : (['FixPartNumber'].includes(t.taskType)
+                  ? `<button class="btn btn-warning btn-xs modify-part-btn" data-partid="${t.partId}">Modify Part</button>`
+                  : `<button class="btn btn-outline btn-xs" onclick="window.location.hash='#/parts/${t.partId}'">View Part</button>`)}
           </td>
         </tr>
       `;
@@ -312,7 +319,7 @@ async function renderMyTasks(tc) {
         <div class="card-header"><div class="card-title">Designer Tasks</div></div>
         <div class="card-body no-pad">
           <table class="data-table">
-            <thead><tr><th>Part Number</th><th>Task Type</th><th>Description</th><th>Rejection Comments</th><th>Date</th><th>Action</th></tr></thead>
+            <thead><tr><th>Part Number</th><th>Task Type</th><th>Description</th><th>Comments</th><th>Date</th><th>Action</th></tr></thead>
             <tbody>
               ${tableRows}
             </tbody>
@@ -347,13 +354,100 @@ async function renderMyTasks(tc) {
                 <td>${t.started}</td>
                 <td style="font-family:var(--font-mono); font-size:0.857rem;">${t.ref}</td>
                 <td>
-                  ${(t.type === 'Part' || t.type === 'PartNumber' || t.type?.toLowerCase() === 'drawing') && !isDone ? `<button class="btn btn-outline btn-xs view-stage-btn" data-id="${t.entityId}" data-type="${t.type}">View Stage</button>` : ''}
+                  ${(t.type === 'UploadDrawing' || t.type === 'ReUploadDrawing') && !isDone ?
+                    `<button class="btn btn-primary btn-xs nav-upload-btn" data-part="${t.ref !== '-' ? t.ref : t.entityId}">Upload Drawing</button>` :
+                    ((t.type === 'Part' || t.type === 'PartNumber' || t.type?.toLowerCase() === 'drawing') && !isDone ? `<button class="btn btn-outline btn-xs view-stage-btn" data-id="${t.entityId}" data-type="${t.type}">View Stage</button>` : '')}
                 </td>
               </tr>`}).join('') : '<tr><td colspan="8" class="text-center text-secondary py-4" style="text-align: center;">No pending tasks</td></tr>'}
           </tbody>
         </table>
       </div>
     </div>`;
+
+  tc.querySelectorAll('.nav-upload-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const partNum = e.target.dataset.part;
+      if (partNum) navigateTo('upload-drawing', partNum);
+    });
+  });
+
+  tc.querySelectorAll('.modify-part-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const partId = e.target.dataset.partid;
+      if (!partId) return;
+
+      const prevText = e.target.textContent;
+      e.target.textContent = 'Loading...';
+      e.target.disabled = true;
+
+      try {
+        const part = await getPartById(partId);
+        
+        const overlay = showModal('Modify Part',
+          `<div class="detail-grid" style="grid-template-columns: 1fr 1fr; gap:16px;">
+             <div class="form-group"><label class="form-label">Name</label><input class="form-input" id="mod-name" value="${part.name || ''}"></div>
+             <div class="form-group"><label class="form-label">Description</label><input class="form-input" id="mod-desc" value="${part.description || ''}"></div>
+             <div class="form-group"><label class="form-label">Make/Buy</label>
+               <select class="form-select" id="mod-makeBuy">
+                 <option value="0" ${part.makeBuy === 0 ? 'selected' : ''}>Make</option>
+                 <option value="1" ${part.makeBuy === 1 ? 'selected' : ''}>Buy</option>
+               </select>
+             </div>
+             <div class="form-group"><label class="form-label">Release Flag</label><input class="form-input" type="number" id="mod-release" value="${part.releaseFlag || 0}"></div>
+             <div class="form-group"><label class="form-label">EE Release</label><input class="form-input" type="number" id="mod-eeRelease" value="${part.eeRelease || 0}"></div>
+             <div class="form-group"><label class="form-label">Weight</label><input class="form-input" type="number" id="mod-weight" value="${part.weight || 0}"></div>
+             <div class="form-group"><label class="form-label">UoM</label><input class="form-input" id="mod-uom" value="${part.unitOfMeasure || ''}"></div>
+             <div class="form-group"><label class="form-label">GST Code</label><input class="form-input" id="mod-gst" value="${part.gstCode || ''}"></div>
+             <div class="form-group"><label class="form-label">Supplier Name</label><input class="form-input" id="mod-suppName" value="${part.supplierName || ''}"></div>
+             <div class="form-group"><label class="form-label">Supplier Email</label><input class="form-input" id="mod-suppEmail" value="${part.supplierEmail || ''}"></div>
+             <div class="form-group"><label class="form-label">Lifecycle Status</label><input class="form-input" type="number" id="mod-lifecycle" value="${part.lifecycleStatus || 0}"></div>
+             <div class="form-group"><label class="form-label">Quantity</label><input class="form-input" type="number" id="mod-qty" value="${part.quantity || 0}"></div>
+             <div class="form-group" style="grid-column: 1 / -1;"><label class="form-label">Homologation Status</label><input class="form-input" type="number" id="mod-homol" value="${part.homologationStatus || 0}"></div>
+           </div>`,
+          `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+           <button class="btn btn-primary" id="save-mod-part">Update Part</button>`
+        );
+
+        overlay.querySelector('#save-mod-part').addEventListener('click', async (btnEv) => {
+          const sBtn = btnEv.target;
+          sBtn.textContent = 'Updating...';
+          sBtn.disabled = true;
+
+          const payload = {
+            name: overlay.querySelector('#mod-name').value.trim(),
+            description: overlay.querySelector('#mod-desc').value.trim(),
+            makeBuy: parseInt(overlay.querySelector('#mod-makeBuy').value, 10) || 0,
+            releaseFlag: parseInt(overlay.querySelector('#mod-release').value, 10) || 0,
+            eeRelease: parseInt(overlay.querySelector('#mod-eeRelease').value, 10) || 0,
+            weight: parseFloat(overlay.querySelector('#mod-weight').value) || 0,
+            unitOfMeasure: overlay.querySelector('#mod-uom').value.trim(),
+            gstCode: overlay.querySelector('#mod-gst').value.trim(),
+            supplierName: overlay.querySelector('#mod-suppName').value.trim(),
+            supplierEmail: overlay.querySelector('#mod-suppEmail').value.trim(),
+            lifecycleStatus: parseInt(overlay.querySelector('#mod-lifecycle').value, 10) || 0,
+            quantity: parseInt(overlay.querySelector('#mod-qty').value, 10) || 0,
+            homologationStatus: parseInt(overlay.querySelector('#mod-homol').value, 10) || 0
+          };
+
+          try {
+            await updatePart(partId, payload);
+            showToast('Part updated successfully', 'success');
+            overlay.remove();
+          } catch (err) {
+            showToast(err.message || 'Update failed', 'error');
+            sBtn.textContent = 'Update Part';
+            sBtn.disabled = false;
+          }
+        });
+
+      } catch (err) {
+        showToast('Failed to load part details', 'error');
+      } finally {
+        e.target.textContent = prevText;
+        e.target.disabled = false;
+      }
+    });
+  });
 
   tc.querySelectorAll('.view-stage-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
@@ -498,7 +592,9 @@ async function renderInProgress(tc) {
                 <td style="font-family:var(--font-mono); font-size:0.857rem;">${t.ref}</td>
                 <td>
                   <button class="btn btn-outline btn-xs view-wf-btn" data-id="${t.id}" style="margin-right:4px;">View</button>
-                  ${(t.type === 'Part' || t.type === 'PartNumber' || t.type?.toLowerCase() === 'drawing') ? `<button class="btn btn-outline btn-xs view-stage-btn" data-id="${t.entityId}" data-type="${t.type}">View Stage</button>` : ''}
+                  ${(t.type === 'UploadDrawing' || t.type === 'ReUploadDrawing') ?
+                    `<button class="btn btn-primary btn-xs nav-upload-btn" data-part="${t.ref !== '-' ? t.ref : t.entityId}">Upload Drawing</button>` :
+                    ((t.type === 'Part' || t.type === 'PartNumber' || t.type?.toLowerCase() === 'drawing') ? `<button class="btn btn-outline btn-xs view-stage-btn" data-id="${t.entityId}" data-type="${t.type}">View Stage</button>` : '')}
                 </td>
               </tr>
             `).join('') : '<tr><td colspan="8" class="text-center text-secondary py-4" style="text-align: center;">No Pending workflows</td></tr>'}
@@ -509,6 +605,13 @@ async function renderInProgress(tc) {
 
   tc.querySelectorAll('.view-wf-btn').forEach(btn => {
     btn.addEventListener('click', () => showToast(`Opening workflow ${btn.dataset.id}…`, 'info'));
+  });
+
+  tc.querySelectorAll('.nav-upload-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const partNum = e.target.dataset.part;
+      if (partNum) navigateTo('upload-drawing', partNum);
+    });
   });
 
   tc.querySelectorAll('.view-stage-btn').forEach(btn => {

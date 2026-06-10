@@ -73,8 +73,8 @@ export function renderUploadDrawing(container, prefillPartNumber = '') {
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Part Number (PartId)</label>
-            <input class="form-input" id="ud-partId" placeholder="Auto-filled after Fetch" readonly
+            <label class="form-label">PartNumber</label>
+            <input class="form-input" id="ud-partNumber" placeholder="Auto-filled after Fetch" readonly
               style="background:var(--bg-muted);cursor:not-allowed;" />
           </div>
           <div class="form-group">
@@ -95,8 +95,8 @@ export function renderUploadDrawing(container, prefillPartNumber = '') {
 
   // ── File picker ──
   const fileInput = container.querySelector('#ud-file-input');
-  const dropZone  = container.querySelector('#ud-drop-zone');
-  const dropText  = container.querySelector('#ud-drop-text');
+  const dropZone = container.querySelector('#ud-drop-zone');
+  const dropText = container.querySelector('#ud-drop-text');
 
   dropZone.addEventListener('click', () => fileInput.click());
   dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.background = 'var(--brand-primary-light)'; });
@@ -120,17 +120,17 @@ export function renderUploadDrawing(container, prefillPartNumber = '') {
     btn.disabled = true;
     try {
       const part = await getPartByNumber(pn);
-      const partNum  = part.partNumber || pn;
+      const partNum = part.partNumber || pn;
       const partName = part.name || '';
-      const partRev  = (part.revisionLetter || 'A') + (part.revisionDigits || '');
+      const partRev = (part.revisionLetter || 'A') + (part.revisionDigits || '');
 
       container.querySelector('#ud-part-info').style.display = '';
       container.querySelector('#ud-part-name-display').textContent = partName || '—';
-      container.querySelector('#ud-part-num-display').textContent  = `Part Number: ${partNum}`;
-      container.querySelector('#ud-drwNum').value  = `DRW-${partNum}`;
-      container.querySelector('#ud-name').value    = partName ? `${partName} Drawing` : '';
-      container.querySelector('#ud-partId').value  = partNum;
-      container.querySelector('#ud-rev').value     = partRev;
+      container.querySelector('#ud-part-num-display').textContent = `Part Number: ${partNum}`;
+      container.querySelector('#ud-drwNum').value = `DRW-${partNum}`;
+      container.querySelector('#ud-name').value = partName ? `${partName} Drawing` : '';
+      container.querySelector('#ud-partNumber').value = partNum;
+      container.querySelector('#ud-rev').value = partRev;
       showToast(`Part "${partNum}" loaded.`, 'success');
     } catch (err) {
       showToast(err.message || 'Part not found.', 'error');
@@ -159,7 +159,7 @@ export function renderUploadDrawing(container, prefillPartNumber = '') {
   container.querySelector('#ud-reset').addEventListener('click', () => {
     container.querySelector('#ud-part-search').value = '';
     container.querySelector('#ud-part-info').style.display = 'none';
-    ['#ud-drwNum', '#ud-name', '#ud-partId', '#ud-rev'].forEach(id => { container.querySelector(id).value = ''; });
+    ['#ud-drwNum', '#ud-name', '#ud-partNumber', '#ud-rev'].forEach(id => { container.querySelector(id).value = ''; });
     container.querySelector('#ud-type').value = '0';
     dropText.textContent = 'Click to select file or drag & drop';
     fileInput.value = '';
@@ -168,10 +168,10 @@ export function renderUploadDrawing(container, prefillPartNumber = '') {
   // ── Submit ──
   container.querySelector('#ud-submit').addEventListener('click', async () => {
     const drawingNumber = container.querySelector('#ud-drwNum').value.trim();
-    const name          = container.querySelector('#ud-name').value.trim();
-    const type          = container.querySelector('#ud-type').value;
-    const partId        = container.querySelector('#ud-partId').value.trim();
-    const revision      = container.querySelector('#ud-rev').value.trim();
+    const name = container.querySelector('#ud-name').value.trim();
+    const type = container.querySelector('#ud-type').value;
+    const partNumber = container.querySelector('#ud-partNumber').value.trim();
+    const revision = container.querySelector('#ud-rev').value.trim();
 
     if (!drawingNumber || !name) {
       showToast('Drawing Number and Name are required.', 'error');
@@ -182,9 +182,15 @@ export function renderUploadDrawing(container, prefillPartNumber = '') {
     formData.append('DrawingNumber', drawingNumber);
     formData.append('Name', name);
     formData.append('Type', type);
-    if (partId)   formData.append('PartId', partId);
+    if (partNumber) formData.append('PartNumber', partNumber);
     if (revision) formData.append('Revision', revision);
     if (fileInput.files?.length) formData.append('file', fileInput.files[0]);
+    // Console log the payload for debugging
+    console.log('--- Upload Drawing Payload ---');
+    for (const [key, value] of formData.entries()) {
+      console.log(`${key}:`, value);
+    }
+    console.log('------------------------------');
 
     const btn = container.querySelector('#ud-submit');
     try {
