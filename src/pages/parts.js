@@ -1,5 +1,5 @@
 import { showToast, showModal, navigateTo } from '../main.js';
-import { createPart, getParts, getPartById, getPartByNumber, updatePart, revisePart, deletePart } from '../api/parts.js';
+import { createPart, getParts, getPartById, getPartByNumber, updatePart, revisePart, deletePart, fetchSuppliers } from '../api/parts.js';
 import { createBom, getBomTree, updateBomLine, deleteBomLine, getBomLines, getBomWhereUsed, getBoms, getBomParts, getBomById, getAllBomsWithParts, addBomLine } from '../api/bom.js';
 
 // ─── Master Data from PartNo.xlsx ───────────────────────────
@@ -129,16 +129,28 @@ function buildPartNumber({ categoryCode, modelCode, groupCode, subCode, serial =
   return `${categoryCode}${modelCode}${groupCode}${subCode}${s}${machiningCode}${revisionLetter}${devStatusCode}`;
 }
 
-// ─── Serial auto-increment from existing BOM_TREE ────────────
-function getNextSerial({ categoryCode, modelCode, groupCode, subCode }) {
+// ─── Serial auto-increment from purely backend parts ────────────
+async function getNextSerial({ categoryCode, modelCode, groupCode, subCode }) {
+  if (!categoryCode || !modelCode || !groupCode || !subCode) return '001';
   const prefix = `${categoryCode}${modelCode}${groupCode}${subCode}`.toUpperCase();
   let maxSerial = 0;
-  BOM_TREE.forEach(node => {
-    const pn = String(node?.pn || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (!pn.startsWith(prefix) || pn.length < prefix.length + 3) return;
-    const serial = Number(pn.slice(prefix.length, prefix.length + 3));
-    if (Number.isFinite(serial) && serial > maxSerial) maxSerial = serial;
-  });
+  try {
+    const res = await getParts();
+    const items = Array.isArray(res) ? res : (res?.items || []);
+    items.forEach(node => {
+      let pn = '';
+      if (node.partNumber) pn = node.partNumber.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (pn.startsWith(prefix) && pn.length >= prefix.length + 3) {
+        const serial = Number(pn.slice(prefix.length, prefix.length + 3));
+        if (Number.isFinite(serial) && serial > maxSerial) maxSerial = serial;
+      } else if (node.categoryCode === categoryCode && node.modelCode === modelCode && node.groupCode === groupCode && node.subGroupCode === subCode) {
+        const serial = Number(node.serialNumber);
+        if (Number.isFinite(serial) && serial > maxSerial) maxSerial = serial;
+      }
+    });
+  } catch (e) {
+    console.warn('Failed to fetch parts for serial', e);
+  }
   return String(Math.min(999, maxSerial + 1)).padStart(3, '0');
 }
 
@@ -1494,7 +1506,7 @@ function renderCreatePart(tc) {
             <input class="form-input" id="cp-bom-ref" type="number" placeholder="Enter BOM ID to link to" />
             <div class="text-xs text-secondary" style="margin-top:4px">If entered, the new part will be added to this BOM.</div>
           </div>
-          <div class="form-group">
+          <div class="form-group" id="supplier-select-wrapper">
             <label class="form-label">Supplier Name</label>
             <select class="form-select" id="cp-supplier">
               <option value="na">Not Applicable</option>
@@ -1540,11 +1552,19 @@ function renderCreatePart(tc) {
     </div>`;
 
   // Auto-update part number
-  const updatePN = () => {
+  const updatePN = async () => {
     const [gc, sc] = String(tc.querySelector('#cp-group')?.value || '').split(':');
     const catCode = tc.querySelector('#cp-cat')?.value || '';
     const modelCode = tc.querySelector('#cp-model')?.value || '';
-    const serial = getNextSerial({ categoryCode: catCode, modelCode, groupCode: gc || '', subCode: sc || '' });
+    
+    // Show loading state while fetching
+    const el = tc.querySelector('#pn-final');
+    if (el && (!el.dataset.fetching || el.textContent === '—')) {
+       el.dataset.fetching = 'true';
+       el.textContent = '...';
+    }
+
+    const serial = await getNextSerial({ categoryCode: catCode, modelCode, groupCode: gc || '', subCode: sc || '' });
     const pn = buildPartNumber({
       categoryCode: catCode,
       modelCode,
@@ -1555,8 +1575,11 @@ function renderCreatePart(tc) {
       revisionLetter: tc.querySelector('#cp-revision')?.value || 'A',
       devStatusCode: tc.querySelector('#cp-dev-status')?.value || 'X',
     });
-    const el = tc.querySelector('#pn-final');
-    if (el) el.textContent = pn || '—';
+    
+    if (el) {
+      el.textContent = pn || '—';
+      delete el.dataset.fetching;
+    }
   };
 
   tc.querySelectorAll('#cp-cat, #cp-model, #cp-group, #cp-machine, #cp-revision, #cp-dev-status')
@@ -1603,6 +1626,33 @@ function renderCreatePart(tc) {
     confirmGroup.style.display = e.target.value ? 'block' : 'none';
   });
 
+  const makebuySelect = tc.querySelector('#cp-makebuy');
+  const supplierWrapper = tc.querySelector('#supplier-select-wrapper');
+
+  makebuySelect?.addEventListener('change', e => {
+    // Both FSS(0) and BTP(2) require a supplier, so always show it unless it's Make (1)? 
+    // Actually the user says "only shows when Make/Buy is FSS or Make In House" earlier, 
+    // but now says "supplier needed in FSS and BTP". I'll just always show it and enforce validation.
+    if (supplierWrapper) supplierWrapper.style.display = 'block';
+  });
+  makebuySelect?.dispatchEvent(new Event('change'));
+
+  // Fetch and populate existing suppliers
+  if (supplierSelect) {
+    fetchSuppliers().then(suppliers => {
+      const data = Array.isArray(suppliers) ? suppliers : (suppliers?.items || []);
+      const manualOption = supplierSelect.querySelector('option[value="manual"]');
+      data.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = 'existing_' + s.id;
+        opt.dataset.name = s.name;
+        opt.dataset.email = s.email;
+        opt.textContent = s.name;
+        supplierSelect.insertBefore(opt, manualOption);
+      });
+    }).catch(e => console.warn('Supplier fetch failed', e));
+  }
+
   tc.querySelector('#cp-save-draft')?.addEventListener('click', () => {
     showToast('Part saved as draft. Continue editing.', 'info');
   });
@@ -1622,17 +1672,36 @@ function renderCreatePart(tc) {
     if (!categoryCode || !modelCode || !groupCode || !subGroupCode) return showToast('Category, model, and group are required.', 'error');
     if (releaseFlagStr === '' || releaseFlagStr === undefined || releaseFlagStr === null) return showToast('Release Flag is required.', 'error');
 
+    const makeBuyVal = Number(tc.querySelector('#cp-makebuy')?.value || 0);
     const supplierMode = supplierSelect?.value || 'na';
-    const supplierName = supplierMode === 'manual' ? (nameInput?.value?.trim() || '') : 'Not Applicable';
-    const supplierEmail = supplierMode === 'manual' ? (emailInput?.value?.trim() || '') : 'na@company.com';
+    let supplierName = "";
+    let supplierEmail = "";
 
-    if (supplierMode === 'manual') {
-      if (!supplierName) return showToast('Supplier name is required.', 'error');
-      if (!supplierEmail) return showToast('Supplier email is required.', 'error');
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(supplierEmail)) return showToast('Enter a valid supplier email.', 'error');
+    if (supplierMode.startsWith('existing_')) {
+      const selectedOpt = supplierSelect.options[supplierSelect.selectedIndex];
+      supplierName = selectedOpt.dataset.name;
+      supplierEmail = selectedOpt.dataset.email;
+    } else if (supplierMode === 'manual') {
+      supplierName = nameInput?.value?.trim() || "";
+      supplierEmail = emailInput?.value?.trim() || "";
     }
 
-    const serial = getNextSerial({ categoryCode, modelCode, groupCode, subCode: subGroupCode });
+    if (makeBuyVal === 0 || makeBuyVal === 2) {
+      // FSS (0) or BTP (2)
+      if (supplierMode === 'na' || !supplierName || !supplierEmail) {
+        return showToast('Supplier is required for FSS and BTP.', 'error');
+      }
+      if (supplierMode === 'manual' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(supplierEmail)) {
+        return showToast('Enter a valid supplier email.', 'error');
+      }
+    } else {
+      // Make in house (1)
+      if (supplierMode === 'manual' && supplierEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(supplierEmail)) {
+        return showToast('Enter a valid supplier email.', 'error');
+      }
+    }
+
+    const serial = await getNextSerial({ categoryCode, modelCode, groupCode, subCode: subGroupCode });
     const generatedPartNumber = buildPartNumber({ categoryCode, modelCode, groupCode, subCode: subGroupCode, serial, machiningCode, revisionLetter, devStatusCode });
 
     const targetBomId = tc.querySelector('#cp-bom-ref')?.value?.trim();

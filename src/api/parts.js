@@ -162,3 +162,17 @@ export async function getPartByNumber(partNumber) {
   if (!response.ok) throw new Error(`Failed to fetch part by number (${response.status})`);
   return response.json();
 }
+
+export async function fetchSuppliers() {
+  const response = await authFetch('/api/Suppliers', {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    }
+  });
+  if (!response.ok) {
+     console.warn('Failed to fetch suppliers:', response.status);
+     return [];
+  }
+  return response.json();
+}
