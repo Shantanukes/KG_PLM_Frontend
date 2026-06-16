@@ -12,22 +12,17 @@ export function renderChangeManagement(container) {
         <button class="btn btn-outline btn-sm" id="btn-impact">
           <span class="material-icons-outlined" style="font-size:16px">analytics</span>Impact Analysis
         </button>
-        <button class="btn btn-primary btn-sm" id="btn-new-ecr">
-          <span class="material-icons-outlined" style="font-size:16px">add</span>Raise ECR
-        </button>
         <button class="btn btn-primary btn-sm" id="btn-new-ecn" style="margin-left: 8px;">
-          <span class="material-icons-outlined" style="font-size:16px">add</span>Raise ECN
+          <span class="material-icons-outlined" style="font-size:16px">add</span>ECN Release
         </button>
       </div>
     </div>
 
     <div class="tabs" id="change-tabs">
       <button class="tab-btn active" data-tab="kanban">Kanban Board</button>
-      <button class="tab-btn" data-tab="ecr-list">ECR List</button>
       <button class="tab-btn" data-tab="ecn-list">ECN List</button>
       <button class="tab-btn" data-tab="ecn-eng">ECN-Eng Log</button>
-      <button class="tab-btn" data-tab="new-ecr">Raise ECR</button>
-      <button class="tab-btn" data-tab="new-ecn">Raise ECN</button>
+      <button class="tab-btn" data-tab="new-ecn">ECN Release</button>
     </div>
 
     <div id="change-tab-content"></div>
@@ -39,11 +34,6 @@ export function renderChangeManagement(container) {
       btn.classList.add('active');
       renderChangeTab(container.querySelector('#change-tab-content'), btn.dataset.tab);
     });
-  });
-
-  container.querySelector('#btn-new-ecr')?.addEventListener('click', () => {
-    container.querySelectorAll('#change-tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'new-ecr'));
-    renderChangeTab(container.querySelector('#change-tab-content'), 'new-ecr');
   });
 
   container.querySelector('#btn-new-ecn')?.addEventListener('click', () => {
@@ -60,10 +50,8 @@ export function renderChangeManagement(container) {
 
 function renderChangeTab(tc, tab) {
   if (tab === 'kanban') renderKanban(tc);
-  else if (tab === 'ecr-list') renderECRList(tc);
   else if (tab === 'ecn-list') renderECNList(tc);
   else if (tab === 'ecn-eng') renderECNEng(tc);
-  else if (tab === 'new-ecr') renderNewECRForm(tc);
   else if (tab === 'new-ecn') renderNewECNForm(tc);
 }
 
@@ -313,65 +301,6 @@ async function openECRDetail(id) {
   }
 }
 
-function renderECRList(tc) {
-  const ecrs = [
-    { id: 'KG-ECR-2026-0052', title: 'Alternative Wheel Supplier Qualification', cat: 'Supplier Change', priority: 'medium', model: 'GA (E-Luna)', by: 'Priya M.', date: '06-Apr-2026', status: 'draft' },
-    { id: 'KG-ECR-2026-0051', title: 'Side Stand Sensor Improvement', cat: 'Design Upgrade', priority: 'low', model: 'GA (E-Luna)', by: 'Rohit S.', date: '05-Apr-2026', status: 'draft' },
-    { id: 'KG-ECR-2026-0047', title: 'BMS PCB Overheating Fix — Safar Smart', cat: 'Defect Fix', priority: 'high', model: 'BA, BD', by: 'Rohit S.', date: '03-Apr-2026', status: 'review' },
-    { id: 'KG-ECR-2026-0043', title: 'Motor Control Unit Upgrade — Zulu', cat: 'Design Upgrade', priority: 'high', model: 'GF (Zulu)', by: 'Amit K.', date: '28-Mar-2026', status: 'review' },
-    { id: 'KG-ECR-2026-0040', title: 'AIS-038 Rev5 Battery Cell Fuse', cat: 'Regulatory', priority: 'critical', model: 'All 2W', by: 'Vikram T.', date: '20-Mar-2026', status: 'released' },
-    { id: 'KG-ECR-2026-0035', title: 'Safar Shakti Harness Rev', cat: 'Design Upgrade', priority: 'medium', model: 'BC (Shakti)', by: 'Neha N.', date: '15-Mar-2026', status: 'released' },
-  ];
-
-  tc.innerHTML = `
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">ECR Registry</div>
-        <div style="display:flex;gap:8px">
-          <select class="form-select" style="width:140px;padding:6px 10px" id="ecr-filter-status">
-            <option value="">All Status</option><option>Draft</option><option>In Review</option><option>Approved</option>
-          </select>
-          <select class="form-select" style="width:160px;padding:6px 10px" id="ecr-filter-priority">
-            <option value="">All Priority</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option>
-          </select>
-        </div>
-      </div>
-      <div class="card-body no-pad">
-        <table class="data-table">
-          <thead><tr><th>ECR Number</th><th>Title</th><th>Category</th><th>Priority</th><th>Model</th><th>Raised By</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="ecr-rows">
-            ${ecrs.map(e => `
-              <tr class="ecr-row">
-                <td><span class="part-number" style="cursor:pointer" data-ecrid="${e.id}">${e.id}</span></td>
-                <td style="max-width:220px;white-space:normal;line-height:1.4">${e.title}</td>
-                <td><span class="tag">${e.cat}</span></td>
-                <td><span class="badge badge-priority-${e.priority}">${e.priority.charAt(0).toUpperCase() + e.priority.slice(1)}</span></td>
-                <td>${e.model}</td>
-                <td>${e.by}</td>
-                <td class="text-secondary text-sm">${e.date}</td>
-                <td><span class="badge badge-${e.status}">${e.status === 'released' ? 'Approved' : e.status === 'review' ? 'In Review' : 'Draft'}</span></td>
-                <td>
-                  <button class="btn btn-ghost btn-xs open-ecr" data-id="${e.id}"><span class="material-icons-outlined" style="font-size:16px">visibility</span></button>
-                  <button class="btn btn-ghost btn-xs"><span class="material-icons-outlined" style="font-size:16px">edit</span></button>
-                </td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>`;
-
-  tc.querySelectorAll('.open-ecr, [data-ecrid]').forEach(el => {
-    el.addEventListener('click', () => openECRDetail(el.dataset.id || el.dataset.ecrid));
-  });
-
-  tc.querySelector('#ecr-filter-status')?.addEventListener('change', (e) => {
-    const q = e.target.value.toLowerCase();
-    tc.querySelectorAll('.ecr-row').forEach(r => {
-      r.style.display = !q || r.textContent.toLowerCase().includes(q) ? '' : 'none';
-    });
-  });
-}
-
 function renderECNList(tc) {
   const ecns = [
     { id: 'KG-ECN-2026-0048', title: 'BMS PCB Trace Width Upgrade — Safar Smart', effectivity: 'VIN: BG3W-2026-01501', status: 'draft', by: 'Rohit A.', date: '06-Apr-2026' },
@@ -485,92 +414,6 @@ function renderECNEng(tc) {
   });
 }
 
-function renderNewECRForm(tc) {
-  tc.innerHTML = `
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title"><span class="material-icons-outlined">edit_note</span>Raise Engineering Change Request</div>
-      </div>
-      <div class="card-body">
-        <div class="grid-2" style="gap:20px">
-          <div class="form-group"><label class="form-label">Title <span style="color:#DC2626">*</span></label>
-            <input class="form-input" id="ecr-title" placeholder="Brief one-line description of the change" /></div>
-          
-          <div class="form-group"><label class="form-label">Priority <span style="color:#DC2626">*</span></label>
-            <select class="form-select" id="ecr-priority">
-              <option value="">Select priority…</option>
-              <option value="4">Critical</option>
-              <option value="3">High</option>
-              <option value="2">Medium</option>
-              <option value="1">Low</option>
-            </select></div>
-            
-          <div class="form-group" style="grid-column:1/-1"><label class="form-label">Description <span style="color:#DC2626">*</span></label>
-            <textarea class="form-input" id="ecr-description" rows="4" placeholder="Describe the issue in detail..." style="resize:vertical"></textarea></div>
-            
-          <div class="form-group" style="grid-column:1/-1"><label class="form-label">Justification <span style="color:#DC2626">*</span></label>
-            <textarea class="form-input" id="ecr-justification" rows="3" placeholder="Provide justification for the proposed change..." style="resize:vertical"></textarea></div>
-            
-          <div class="form-group" style="grid-column:1/-1"><label class="form-label">Affected Areas <span style="color:#DC2626">*</span></label>
-            <textarea class="form-input" id="ecr-affected" rows="2" placeholder="List the affected models, vehicles, or part numbers..." style="resize:vertical"></textarea></div>
-        </div>
-        <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px">
-          <button class="btn btn-outline" id="ecr-save-draft">Save Draft</button>
-          <button class="btn btn-primary" id="ecr-submit">
-            <span class="material-icons-outlined" style="font-size:16px">send</span>Submit ECR
-          </button>
-        </div>
-      </div>
-    </div>`;
-
-  tc.querySelector('#ecr-save-draft')?.addEventListener('click', () => showToast('ECR saved as draft.', 'info'));
-
-  tc.querySelector('#ecr-submit')?.addEventListener('click', async (e) => {
-    const btn = e.currentTarget;
-    const title = tc.querySelector('#ecr-title')?.value;
-    const priorityInt = parseInt(tc.querySelector('#ecr-priority')?.value, 10);
-    const description = tc.querySelector('#ecr-description')?.value;
-    const justification = tc.querySelector('#ecr-justification')?.value;
-    const affectedAreas = tc.querySelector('#ecr-affected')?.value;
-
-    if (!title || isNaN(priorityInt) || !description || !justification || !affectedAreas) {
-      return showToast('Please fill all required fields (*)', 'error');
-    }
-
-    const payload = {
-      title,
-      description,
-      priority: priorityInt,
-      justification,
-      affectedAreas
-    };
-
-    btn.disabled = true;
-    btn.textContent = 'Submitting...';
-
-    try {
-      const res = await authFetch('/api/Changes/ecr', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) {
-        showToast('ECR submitted successfully! COE Head notified for review.', 'success');
-        tc.querySelectorAll('.form-input').forEach(el => el.value = '');
-        tc.querySelectorAll('.form-select').forEach(el => el.selectedIndex = 0);
-      } else {
-        showToast('Failed to submit ECR. Server status ' + res.status, 'error');
-      }
-    } catch (err) {
-      console.error('Error submitting ECR:', err);
-      showToast('Network error while submitting ECR', 'error');
-    } finally {
-      btn.disabled = false;
-      btn.innerHTML = '<span class="material-icons-outlined" style="font-size:16px">send</span>Submit ECR';
-    }
-  });
-}
-
 function runImpactAnalysis() {
   showModal('Automated Impact Analysis',
     `<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding:14px;background:var(--brand-primary-lighter);border-radius:var(--radius-md)">
@@ -597,30 +440,57 @@ function renderNewECNForm(tc) {
   tc.innerHTML = `
     <div class="card">
       <div class="card-header">
-        <div class="card-title"><span class="material-icons-outlined">edit_note</span>Raise Engineering Change Note (ECN)</div>
+        <div class="card-title"><span class="material-icons-outlined">edit_note</span>ECN Release</div>
       </div>
       <div class="card-body">
         <div class="grid-2" style="gap:20px">
-          <div class="form-group"><label class="form-label">Title <span style="color:#DC2626">*</span></label>
-            <input class="form-input" id="ecn-title" placeholder="Brief one-line description of the ECN" /></div>
+          <div class="form-group"><label class="form-label">Triggering Part ID <span style="color:#DC2626">*</span></label>
+            <input type="number" class="form-input" id="ecn-triggering-part" placeholder="e.g. 101" /></div>
           
-          <div class="form-group"><label class="form-label">Effectivity Type <span style="color:#DC2626">*</span></label>
-            <select class="form-select" id="ecn-effectivity">
-              <option value="0">Serial Number Effectivity (0)</option>
-              <option value="1">Date Effectivity (1)</option>
-            </select></div>
+          <div class="form-group"><label class="form-label">Prepared By Name <span style="color:#DC2626">*</span></label>
+            <input type="text" class="form-input" id="ecn-prepared-name" placeholder="Name" /></div>
             
-          <div class="form-group"><label class="form-label">Effectivity Date</label>
-            <input type="datetime-local" class="form-input" id="ecn-date" /></div>
+          <div class="form-group"><label class="form-label">Prepared By Role <span style="color:#DC2626">*</span></label>
+            <input type="text" class="form-input" id="ecn-prepared-role" placeholder="Role" /></div>
 
-          <div class="form-group"><label class="form-label">Affected Part IDs</label>
-            <input class="form-input" id="ecn-affected" placeholder="e.g. 101, 105" /></div>
+          <div class="form-group"><label class="form-label">Checked By Name <span style="color:#DC2626">*</span></label>
+            <input type="text" class="form-input" id="ecn-checked-name" placeholder="Name" /></div>
+
+          <div class="form-group"><label class="form-label">Checked By Role <span style="color:#DC2626">*</span></label>
+            <input type="text" class="form-input" id="ecn-checked-role" placeholder="Role" /></div>
             
-          <div class="form-group" style="grid-column:1/-1"><label class="form-label">Description <span style="color:#DC2626">*</span></label>
-            <textarea class="form-input" id="ecn-description" rows="4" placeholder="Describe the change in detail..." style="resize:vertical"></textarea></div>
+          <div class="form-group" style="grid-column:1/-1"><label class="form-label">Reason <span style="color:#DC2626">*</span></label>
+            <textarea class="form-input" id="ecn-reason" rows="2" placeholder="Reason for change..." style="resize:vertical"></textarea></div>
+
+          <div class="form-group" style="grid-column:1/-1"><label class="form-label">Change Details <span style="color:#DC2626">*</span></label>
+            <textarea class="form-input" id="ecn-change-details" rows="3" placeholder="Change details..." style="resize:vertical"></textarea></div>
             
-          <div class="form-group" style="grid-column:1/-1"><label class="form-label">Implementation Notes <span style="color:#DC2626">*</span></label>
-            <textarea class="form-input" id="ecn-notes" rows="3" placeholder="Provide implementation notes..." style="resize:vertical"></textarea></div>
+          <div class="form-group" style="grid-column:1/-1"><label class="form-label">Remarks</label>
+            <textarea class="form-input" id="ecn-remarks" rows="2" placeholder="Remarks..." style="resize:vertical"></textarea></div>
+
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">Implementation Options</label>
+            <div style="display:flex; flex-wrap:wrap; gap:16px; margin-top:8px;">
+              <label style="display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" id="ecn-consume-stock" /> To Be Implemented After Consuming Stock
+              </label>
+              <label style="display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" id="ecn-lead-time" /> To Be Implemented After Lead Time
+              </label>
+              <label style="display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" id="ecn-immediate" /> To Be Implemented With Immediate Effect
+              </label>
+              <label style="display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" id="ecn-running-change" /> Running Change
+              </label>
+              <label style="display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" id="ecn-field-parts" /> Field Parts To Be Modified
+              </label>
+              <label style="display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" id="ecn-replace-vehicle-parts" /> Replace Field Vehicle Parts
+              </label>
+            </div>
+          </div>
         </div>
         <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px">
           <button class="btn btn-outline" id="ecn-save-draft">Save Draft</button>
@@ -635,30 +505,40 @@ function renderNewECNForm(tc) {
 
   tc.querySelector('#ecn-submit')?.addEventListener('click', async (e) => {
     const btn = e.currentTarget;
-    const title = tc.querySelector('#ecn-title')?.value;
-    const effectivityType = parseInt(tc.querySelector('#ecn-effectivity')?.value, 10);
-    let effectivityDate = tc.querySelector('#ecn-date')?.value;
-    const affectedPartIds = tc.querySelector('#ecn-affected')?.value;
-    const description = tc.querySelector('#ecn-description')?.value;
-    const implementationNotes = tc.querySelector('#ecn-notes')?.value;
+    const triggeringPartId = parseInt(tc.querySelector('#ecn-triggering-part')?.value, 10) || 0;
+    const reason = tc.querySelector('#ecn-reason')?.value || "";
+    const changeDetails = tc.querySelector('#ecn-change-details')?.value || "";
+    const remarks = tc.querySelector('#ecn-remarks')?.value || "";
+    const toBeImplementedAfterConsumingStock = tc.querySelector('#ecn-consume-stock')?.checked || false;
+    const toBeImplementedAfterLeadTime = tc.querySelector('#ecn-lead-time')?.checked || false;
+    const toBeImplementedWithImmediateEffect = tc.querySelector('#ecn-immediate')?.checked || false;
+    const runningChange = tc.querySelector('#ecn-running-change')?.checked || false;
+    const fieldPartsToBeModified = tc.querySelector('#ecn-field-parts')?.checked || false;
+    const replaceFieldVehicleParts = tc.querySelector('#ecn-replace-vehicle-parts')?.checked || false;
+    const preparedByName = tc.querySelector('#ecn-prepared-name')?.value || "";
+    const preparedByRole = tc.querySelector('#ecn-prepared-role')?.value || "";
+    const checkedByName = tc.querySelector('#ecn-checked-name')?.value || "";
+    const checkedByRole = tc.querySelector('#ecn-checked-role')?.value || "";
 
-    if (!title || isNaN(effectivityType) || !description || !implementationNotes) {
+    if (!triggeringPartId || !reason || !changeDetails || !preparedByName || !preparedByRole || !checkedByName || !checkedByRole) {
       return showToast('Please fill all required fields (*)', 'error');
     }
 
-    if (effectivityDate) {
-      effectivityDate = new Date(effectivityDate).toISOString();
-    } else {
-      effectivityDate = new Date().toISOString();
-    }
-
     const payload = {
-      title,
-      description,
-      effectivityType,
-      effectivityDate,
-      affectedPartIds,
-      implementationNotes
+      triggeringPartId,
+      reason,
+      changeDetails,
+      remarks,
+      toBeImplementedAfterConsumingStock,
+      toBeImplementedAfterLeadTime,
+      toBeImplementedWithImmediateEffect,
+      runningChange,
+      fieldPartsToBeModified,
+      replaceFieldVehicleParts,
+      preparedByName,
+      preparedByRole,
+      checkedByName,
+      checkedByRole
     };
 
     btn.disabled = true;
@@ -673,7 +553,7 @@ function renderNewECNForm(tc) {
       if (res.ok) {
         showToast('ECN submitted successfully!', 'success');
         tc.querySelectorAll('.form-input').forEach(el => el.value = '');
-        tc.querySelectorAll('.form-select').forEach(el => el.selectedIndex = 0);
+        tc.querySelectorAll('input[type="checkbox"]').forEach(el => el.checked = false);
       } else {
         showToast('Failed to submit ECN. Server status ' + res.status, 'error');
       }
