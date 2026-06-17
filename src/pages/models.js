@@ -137,17 +137,8 @@ export function renderModels(container) {
         <div class="form-group"><label class="form-label">Model Name <span style="color:#DC2626">*</span></label><input class="form-input" id="mdl-name" placeholder="e.g. Storm X1" /></div>
         <div class="form-group"><label class="form-label">Model Code <span style="color:#DC2626">*</span></label><input class="form-input" id="mdl-code" placeholder="e.g. GH1" /></div>
         <div class="form-group"><label class="form-label">Category Code</label><input class="form-input" id="mdl-catcode" placeholder="e.g. G" value="G" /></div>
-        <div class="form-group"><label class="form-label">Category Label</label><input class="form-input" id="mdl-catlabel" placeholder="e.g. 2-Wheeler" value="2-Wheeler" /></div>
         <div class="form-group"><label class="form-label">Variant</label><input class="form-input" id="mdl-variant" placeholder="e.g. Go" /></div>
-        <div class="form-group"><label class="form-label">Segment</label><input class="form-input" id="mdl-segment" placeholder="e.g. Low Speed Moped" /></div>
-        <div class="form-group"><label class="form-label">Platform</label><input class="form-input" id="mdl-platform" placeholder="e.g. Limitless Luna 48V" /></div>
-        <div class="form-group"><label class="form-label">Voltage</label><input class="form-input" id="mdl-voltage" placeholder="e.g. 48V / 72V" /></div>
-        <div class="form-group"><label class="form-label">Motor</label><input class="form-input" id="mdl-motor" placeholder="e.g. 250W–500W Hub" /></div>
-        <div class="form-group"><label class="form-label">Top Speed</label><input class="form-input" id="mdl-topspeed" placeholder="e.g. 25 km/h" /></div>
-        <div class="form-group"><label class="form-label">Range</label><input class="form-input" id="mdl-range" placeholder="e.g. 70–120 km" /></div>
-        <div class="form-group"><label class="form-label">Status</label><select class="form-select" id="mdl-status"><option value="production">Production</option><option value="pilot">Pilot Build</option><option value="concept">Concept</option></select></div>
-        <div class="form-group"><label class="form-label">Color Hex</label><input class="form-input" id="mdl-colorhex" placeholder="e.g. #2563EB" value="#2563EB" /></div>
-        <div class="form-group"><label class="form-label">Produced Stats</label><input class="form-input" id="mdl-produced" placeholder="e.g. 0 units" /></div>
+        <div class="form-group"><label class="form-label">Color</label><input class="form-input" id="mdl-colorhex" placeholder="e.g. Blue" value="Blue" /></div>
         <div class="form-group" style="grid-column:1/-1"><label class="form-label">Description / Notes</label><textarea class="form-input" id="mdl-desc" rows="2" placeholder="Notes..." style="resize:vertical"></textarea></div>
       </div>`,
       `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
@@ -166,28 +157,20 @@ export function renderModels(container) {
 
         const payload = {
           name: name,
-          code: code,
+          modelCode: code,
           categoryCode: document.getElementById('mdl-catcode')?.value || 'G',
-          categoryLabel: document.getElementById('mdl-catlabel')?.value || '2-Wheeler',
-          variant: document.getElementById('mdl-variant')?.value || '',
-          segment: document.getElementById('mdl-segment')?.value || '',
-          platform: document.getElementById('mdl-platform')?.value || '',
-          voltage: document.getElementById('mdl-voltage')?.value || '',
-          motor: document.getElementById('mdl-motor')?.value || '',
-          topSpeed: document.getElementById('mdl-topspeed')?.value || '',
-          range: document.getElementById('mdl-range')?.value || '',
-          status: document.getElementById('mdl-status')?.value || 'concept',
-          colorHex: document.getElementById('mdl-colorhex')?.value || '#059669',
-          producedStats: document.getElementById('mdl-produced')?.value || '0 units',
-          description: document.getElementById('mdl-desc')?.value || ''
+          colorHex: document.getElementById('mdl-colorhex')?.value || 'Blue',
+          description: document.getElementById('mdl-desc')?.value || '',
+          variant: document.getElementById('mdl-variant')?.value || ''
         };
 
         try {
+          console.log('[ADD MODEL] Sending payload:', JSON.stringify(payload, null, 2));
           await createVehicleModel(payload);
           document.querySelector('.modal-overlay')?.remove();
           showToast(`Model "${name}" successfully registered!`, 'success');
           // Re-render the catalogue to fetch new models
-          renderModelTab(container.querySelector('#mdl-tab-content'), 'catalogue');
+          renderCatalogue(container.querySelector('#mdl-content'));
         } catch (err) {
           console.error(err);
           showToast('Failed to create model', 'error');
@@ -313,16 +296,21 @@ function buildCatalogueCards(tc, models) {
 
     return `
     <div class="card model-card" data-cat="${filterCat}" style="cursor:pointer">
-      <div class="card-header">
-        <div class="card-title" style="color:${color}">
-          <span class="material-icons-outlined">${icon}</span>${m.name || '-'}
+      <div class="card-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div class="card-title" style="color:${color}">
+            <span class="material-icons-outlined">${icon}</span>${m.name || '-'}
+          </div>
+          <span class="badge ${statusTag}" style="align-self:flex-start;">${statusLbl}</span>
         </div>
-        <span class="badge ${statusTag}">${statusLbl}</span>
+        <button class="btn btn-primary btn-sm create-bom-btn" data-id="${m.id}" data-name="${m.name}" data-code="${m.modelCode || m.code || ''}" data-cat="${m.categoryCode || ''}" style="margin-left:auto;">
+          <span class="material-icons-outlined" style="font-size:16px">account_tree</span>Create BOM
+        </button>
       </div>
       <div class="card-body">
         <div style="font-size:0.857rem;color:var(--text-secondary);margin-bottom:14px">${m.segment || '-'} · ${m.platform || '-'}</div>
         <div class="detail-grid">
-          <div class="detail-field"><div class="detail-label">Model Code</div><div class="detail-value" style="font-family:var(--font-mono);font-weight:700">${m.code || '-'}</div></div>
+          <div class="detail-field"><div class="detail-label">Model Code</div><div class="detail-value" style="font-family:var(--font-mono);font-weight:700">${m.modelCode || m.code || '-'}</div></div>
           <div class="detail-field"><div class="detail-label">Variant</div><div class="detail-value">${m.variant || '-'}</div></div>
           <div class="detail-field"><div class="detail-label">Voltage</div><div class="detail-value">${m.voltage || '-'}</div></div>
           <div class="detail-field"><div class="detail-label">Motor</div><div class="detail-value">${m.motor || '-'}</div></div>
@@ -352,6 +340,19 @@ function buildCatalogueCards(tc, models) {
     const modelName = card.querySelector('.card-title')?.textContent.toLowerCase() || '';
     const matchSearch = !searchQ || modelName.includes(searchQ);
     card.style.display = (matchCat && matchSearch) ? '' : 'none';
+  });
+
+  tc.querySelectorAll('.create-bom-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const prefill = {
+        categoryCode: btn.dataset.cat || '',
+        modelCode: btn.dataset.code || '',
+        name: btn.dataset.name || '',
+        vehicleModelId: btn.dataset.id || 0
+      };
+      openCreateBomModal(prefill);
+    });
   });
 
   tc.querySelectorAll('.view-bom-btn').forEach(btn => {
@@ -410,7 +411,7 @@ function buildCatalogueCards(tc, models) {
             <option value="pilot" ${model.status === 'pilot' ? 'selected' : ''}>Pilot Build</option>
             <option value="concept" ${model.status === 'concept' ? 'selected' : ''}>Concept</option>
           </select></div>
-          <div class="form-group"><label class="form-label">Color Hex</label><input class="form-input" id="edit-mdl-colorhex" value="${model.colorHex || ''}" /></div>
+          <div class="form-group"><label class="form-label">Color</label><input class="form-input" id="edit-mdl-colorhex" placeholder="e.g. Blue" value="${model.colorHex || ''}" /></div>
           <div class="form-group"><label class="form-label">Produced Stats</label><input class="form-input" id="edit-mdl-produced" value="${model.producedStats || ''}" /></div>
           <div class="form-group" style="grid-column:1/-1"><label class="form-label">Description / Notes</label><textarea class="form-input" id="edit-mdl-desc" rows="2" style="resize:vertical">${model.description || ''}</textarea></div>
         </div>`,

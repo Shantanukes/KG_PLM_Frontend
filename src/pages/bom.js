@@ -470,19 +470,8 @@ async function renderBomParts(tc) {
 
 // ─── Create BOM Modal ────────────────────────────────────────
 export async function openCreateBomModal(prefill = {}) {
-  let groupOpts = '';
-  try {
-    const res = await authFetch('/api/Lookups/part-groups');
-    if (res.ok) {
-      const allGroups = await res.json();
-      const standardGroups = allGroups.filter(g => !g.isHardwareGroup);
-      groupOpts = standardGroups.map(g =>
-        `<option value="${g.groupCode}:${g.subGroupCode}">${g.groupCode}${g.subGroupCode} - ${g.name}</option>`
-      ).join('');
-    }
-  } catch (err) {
-    console.error('Error fetching group numbers:', err);
-  }
+  // Group number is hardcoded to 0:1
+  const groupOpts = '<option value="0:1" selected>01 - General/Root</option>';
 
   showModal(
     'Create New BOM',
@@ -501,12 +490,12 @@ export async function openCreateBomModal(prefill = {}) {
       </div>
       <div class="form-group">
         <label class="form-label">Group Number <span style="color:#DC2626">*</span></label>
-        <select class="form-select" id="bom-group-number">${groupOpts}</select>
+        <select class="form-select" id="bom-group-number" disabled>${groupOpts}</select>
       </div>
       <div class="form-group">
         <label class="form-label">Machining / Assembly Status <span style="color:#DC2626">*</span></label>
-        <select class="form-select" id="bom-machining-status">
-          ${optionsHtml(MACHINING_STATUS, 'code', 'label')}
+        <select class="form-select" id="bom-machining-status" disabled>
+          <option value="0">0 - Default</option>
         </select>
       </div>
       <div class="form-group">
