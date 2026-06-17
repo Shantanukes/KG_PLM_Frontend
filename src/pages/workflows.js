@@ -504,9 +504,9 @@ async function renderMyTasks(tc) {
               btn.textContent = 'Approving...';
               try {
                 if (resolvedType === 'PartNumber') {
-                  await approvePartNumber(entityId, { comments });
+                  await approvePartNumber(entityId, { comments, revertToDesigner: false, revertThroughPM: false, selectedPMId: 0 });
                 } else {
-                  await approveDrawing(entityId, { comments, revertToDesigner: "" });
+                  await approveDrawing(entityId, { comments, revertToDesigner: false, revertThroughPM: false, selectedPMId: 0 });
                 }
                 showToast('Approved successfully', 'success');
                 overlay.remove();
@@ -675,9 +675,9 @@ async function renderInProgress(tc) {
               btn.textContent = 'Approving...';
               try {
                 if (resolvedType === 'PartNumber') {
-                  await approvePartNumber(entityId, { comments });
+                  await approvePartNumber(entityId, { comments, revertToDesigner: false, revertThroughPM: false, selectedPMId: 0 });
                 } else {
-                  await approveDrawing(entityId, { comments, revertToDesigner: "" });
+                  await approveDrawing(entityId, { comments, revertToDesigner: false, revertThroughPM: false, selectedPMId: 0 });
                 }
                 showToast('Approved successfully', 'success');
                 overlay.remove();
