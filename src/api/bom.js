@@ -20,9 +20,10 @@ export async function createBOM(payload) {
     name: payload?.name,
     description: payload?.description,
     teamId: payload?.teamId,
+    vehicleModelId: payload?.vehicleModelId
   };
 
-  if (payload?.parentBOMId !== undefined && payload?.parentBOMId !== null && payload?.parentBOMId !== 0) {
+  if (payload?.parentBOMId) {
     body.parentBOMId = payload.parentBOMId;
   }
 

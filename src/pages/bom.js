@@ -203,9 +203,6 @@ export function renderBOM(container) {
         <button class="btn btn-primary btn-sm" id="btn-link-bom" style="background:var(--brand-secondary); border-color:var(--brand-secondary);">
           <span class="material-icons-outlined" style="font-size:16px">link</span>Link BOM
         </button>
-        <button class="btn btn-primary btn-sm" id="btn-new-bom">
-          <span class="material-icons-outlined" style="font-size:16px">playlist_add</span>Create New BOM
-        </button>
         ` : ''}
       </div>
     </div>
@@ -241,9 +238,7 @@ export function renderBOM(container) {
     renderTabContent(container.querySelector('#tab-content'), 'bom-compare');
   });
 
-  container.querySelector('#btn-new-bom')?.addEventListener('click', () => {
-    openCreateBomModal();
-  });
+
 
   container.querySelector('#btn-link-bom')?.addEventListener('click', () => {
     openLinkBomModal();
