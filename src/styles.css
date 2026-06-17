@@ -6,30 +6,46 @@
 /* ---------- CSS VARIABLES ---------- */
 :root {
   /* Brand Colors - Modernized Palette */
-  --brand-primary: #18181b; /* Zinc 900 for primary actions */
-  --brand-primary-light: #27272a; /* Zinc 800 */
-  --brand-primary-lighter: #f4f4f5; /* Zinc 100 */
-  --brand-primary-dark: #09090b; /* Zinc 950 */
-  --brand-accent: #000000; /* Apple-style deep black accent */
-  --brand-accent-light: #e4e4e7; /* Zinc 200 */
+  --brand-primary: #18181b;
+  /* Zinc 900 for primary actions */
+  --brand-primary-light: #27272a;
+  /* Zinc 800 */
+  --brand-primary-lighter: #f4f4f5;
+  /* Zinc 100 */
+  --brand-primary-dark: #09090b;
+  /* Zinc 950 */
+  --brand-accent: #000000;
+  /* Apple-style deep black accent */
+  --brand-accent-light: #e4e4e7;
+  /* Zinc 200 */
 
   /* Neutral Palette */
-  --bg-body: #fafafa; /* Soft, modern off-white */
+  --bg-body: #fafafa;
+  /* Soft, modern off-white */
   --bg-white: #ffffff;
   --bg-elevated: #ffffff;
-  --bg-muted: #f4f4f5; /* Zinc 100 */
-  --bg-hover: #f4f4f5; /* Zinc 100 */
-  --bg-active: #e4e4e7; /* Zinc 200 */
+  --bg-muted: #f4f4f5;
+  /* Zinc 100 */
+  --bg-hover: #f4f4f5;
+  /* Zinc 100 */
+  --bg-active: #e4e4e7;
+  /* Zinc 200 */
 
   /* Borders */
-  --border-light: #e4e4e7; /* Zinc 200 */
-  --border-medium: #d4d4d8; /* Zinc 300 */
-  --border-focus: #18181b; /* Zinc 900 */
+  --border-light: #e4e4e7;
+  /* Zinc 200 */
+  --border-medium: #d4d4d8;
+  /* Zinc 300 */
+  --border-focus: #18181b;
+  /* Zinc 900 */
 
   /* Text - High Contrast Hierarchy */
-  --text-primary: #09090b; /* Zinc 950 */
-  --text-secondary: #52525b; /* Zinc 600 */
-  --text-tertiary: #a1a1aa; /* Zinc 400 */
+  --text-primary: #09090b;
+  /* Zinc 950 */
+  --text-secondary: #52525b;
+  /* Zinc 600 */
+  --text-tertiary: #a1a1aa;
+  /* Zinc 400 */
   --text-inverse: #ffffff;
   --text-brand: #000000;
 
@@ -59,12 +75,15 @@
   --shadow-md: 0 6px 12px -2px rgba(0, 0, 0, 0.04), 0 3px 6px -3px rgba(0, 0, 0, 0.02);
   --shadow-lg: 0 12px 24px -4px rgba(0, 0, 0, 0.05), 0 8px 12px -6px rgba(0, 0, 0, 0.03);
   --shadow-card: 0px 4px 14px rgba(0, 0, 0, 0.02), 0px 1px 3px rgba(0, 0, 0, 0.03);
-  
+
   /* Layout */
-  --sidebar-width: 240px; /* Slimmer for modern feel */
+  --sidebar-width: 240px;
+  /* Slimmer for modern feel */
   --sidebar-collapsed: 64px;
-  --topbar-height: 64px; /* Taller, more breathing room */
-  --radius-sm: 8px; /* Rounder for modern UI */
+  --topbar-height: 64px;
+  /* Taller, more breathing room */
+  --radius-sm: 8px;
+  /* Rounder for modern UI */
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 24px;
@@ -727,7 +746,8 @@ button {
 }
 
 .focus-border {
-  display: none; /* Removed the gradient border line for a cleaner SaaS look */
+  display: none;
+  /* Removed the gradient border line for a cleaner SaaS look */
 }
 
 .toggle-password {
@@ -738,13 +758,15 @@ button {
   background: none;
   border: none;
   color: #9ca3af;
-  font-size: 18px; /* Slightly smaller eye icon */
+  font-size: 18px;
+  /* Slightly smaller eye icon */
   cursor: pointer;
   z-index: 10;
   padding: 4px;
   border-radius: 6px;
   transition: color 0.15s ease, background 0.15s ease;
-  outline: none; /* Remove default button outline */
+  outline: none;
+  /* Remove default button outline */
 }
 
 .toggle-password:hover {
@@ -1284,7 +1306,8 @@ button {
 .global-search:focus-within {
   border-color: var(--border-focus);
   background: var(--bg-white);
-  box-shadow: 0 0 0 3px rgba(24, 24, 27, 0.1); /* Zinc focus shadow */
+  box-shadow: 0 0 0 3px rgba(24, 24, 27, 0.1);
+  /* Zinc focus shadow */
 }
 
 .global-search .material-icons-outlined {
@@ -1488,8 +1511,11 @@ button {
 .kpi-tile::after {
   content: '';
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: radial-gradient(circle at top right, rgba(255,255,255,0.8), transparent 50%);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.8), transparent 50%);
   opacity: 0;
   transition: opacity 0.4s ease;
   pointer-events: none;
@@ -1875,120 +1901,6 @@ button {
   border-radius: 4px;
 }
 
-/* ---------- KANBAN ---------- */
-.kanban-board {
-  display: flex;
-  gap: 16px;
-  overflow-x: auto;
-  padding-bottom: 12px;
-  min-height: 400px;
-}
-
-.kanban-column {
-  min-width: 280px;
-  max-width: 300px;
-  flex-shrink: 0;
-  background: var(--bg-muted);
-  border-radius: var(--radius-lg);
-  display: flex;
-  flex-direction: column;
-}
-
-.kanban-col-header {
-  padding: 14px 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--border-light);
-}
-
-.kanban-col-title {
-  font-size: 0.857rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.kanban-col-count {
-  background: var(--bg-white);
-  color: var(--text-secondary);
-  font-size: 0.714rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 20px;
-  border: 1px solid var(--border-light);
-}
-
-.kanban-col-body {
-  flex: 1;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  overflow-y: auto;
-}
-
-.kanban-card {
-  background: var(--bg-white);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
-  padding: 14px;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  box-shadow: var(--shadow-xs);
-}
-
-.kanban-card:hover {
-  box-shadow: var(--shadow-md);
-  border-color: var(--border-medium);
-  transform: translateY(-1px);
-}
-
-.kanban-card-title {
-  font-weight: 600;
-  font-size: 0.857rem;
-  color: var(--text-primary);
-  margin-bottom: 6px;
-  line-height: 1.3;
-}
-
-.kanban-card-id {
-  font-family: var(--font-mono);
-  font-size: 0.714rem;
-  color: var(--brand-primary);
-  font-weight: 500;
-  margin-bottom: 8px;
-}
-
-.kanban-card-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 10px;
-}
-
-.kanban-card-assignee {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.714rem;
-  color: var(--text-tertiary);
-}
-
-.kanban-card-assignee-avatar {
-  width: 22px;
-  height: 22px;
-  background: var(--brand-primary);
-  color: white;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 9px;
-  font-weight: 700;
-}
 
 /* ---------- WORKFLOW TIMELINE ---------- */
 .workflow-timeline {
@@ -2126,7 +2038,10 @@ button {
 .task-item::before {
   content: '';
   position: absolute;
-  top: 0; left: 0; bottom: 0; width: 3px;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 3px;
   background: transparent;
   transition: background var(--transition-fast);
 }
@@ -2166,9 +2081,17 @@ button {
 }
 
 @keyframes pulse-red {
-  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-  70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+
+  70% {
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
 }
 
 .task-info {
@@ -2536,45 +2459,7 @@ button {
   margin-top: 4px;
 }
 
-/* ---------- VARIANT MATRIX ---------- */
-.variant-matrix {
-  overflow-x: auto;
-}
 
-.variant-matrix table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 800px;
-}
-
-.variant-matrix th,
-.variant-matrix td {
-  padding: 10px 14px;
-  text-align: left;
-  border: 1px solid var(--border-light);
-  font-size: 0.786rem;
-}
-
-.variant-matrix th {
-  background: var(--bg-muted);
-  font-weight: 600;
-  color: var(--text-secondary);
-  position: sticky;
-  top: 0;
-}
-
-.variant-matrix td {
-  font-family: var(--font-mono);
-  font-size: 0.714rem;
-  color: var(--text-primary);
-}
-
-.variant-matrix .model-name {
-  font-family: var(--font-sans);
-  font-weight: 600;
-  font-size: 0.857rem;
-  color: var(--text-primary);
-}
 
 /* ---------- OTA MATRIX ---------- */
 .ota-cell-yes {
@@ -2616,7 +2501,7 @@ button {
   .sidebar {
     position: fixed;
     /* Use CSS variable for sidebar width to track updates */
-    left: calc(var(--sidebar-width) * -1 - 20px); 
+    left: calc(var(--sidebar-width) * -1 - 20px);
     z-index: 200;
     height: 100vh;
     border-right: none;
@@ -2705,7 +2590,8 @@ button {
   position: relative;
   transform-origin: bottom;
   animation: barGrow 1s cubic-bezier(0.16, 1, 0.3, 1) calc(var(--delay) + 0.5s) both;
-  height: 0; /* Let animation determine final height based on inline style */
+  height: 0;
+  /* Let animation determine final height based on inline style */
 }
 
 .mini-bar::after {
@@ -2836,20 +2722,31 @@ button {
 
 /* ---------- LOADING SKELETON ---------- */
 .skeleton {
-  background: linear-gradient(90deg, var(--bg-muted) 25%, #e4e4e7 50%, var(--bg-muted) 75%); /* Zinc-based skeleton */
+  background: linear-gradient(90deg, var(--bg-muted) 25%, #e4e4e7 50%, var(--bg-muted) 75%);
+  /* Zinc-based skeleton */
   background-size: 200% 100%;
   animation: shimmer 2.5s infinite linear;
   border-radius: var(--radius-sm);
 }
 
 @keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 @keyframes barGrow {
-  0% { transform: scaleY(0); }
-  100% { transform: scaleY(1); }
+  0% {
+    transform: scaleY(0);
+  }
+
+  100% {
+    transform: scaleY(1);
+  }
 }
 
 @keyframes ringDash {
@@ -2859,8 +2756,15 @@ button {
 }
 
 @keyframes scaleIn {
-  0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
-  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  0% {
+    transform: translate(-50%, -50%) scale(0.8);
+    opacity: 0;
+  }
+
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
 }
 
 /* ---------- MISC ---------- */
@@ -3346,14 +3250,7 @@ button {
   text-align: center;
 }
 
-/* ─── VARIANT MATRIX ─────────────────────── */
-.model-name {
-  font-weight: 600;
-}
 
-.variant-matrix {
-  overflow-x: auto;
-}
 
 /* ─── FORM ELEMENTS ──────────────────────── */
 .form-group {
@@ -3736,18 +3633,7 @@ body {
   border: 1px solid transparent;
 }
 
-.kanban-column {
-  background: linear-gradient(180deg, #f5f8fc 0%, #eef3f8 100%);
-  border: 1px solid #dbe5ef;
-}
 
-.kanban-card {
-  border-color: #d6e0eb;
-}
-
-.kanban-card:hover {
-  transform: translateY(-2px);
-}
 
 .bom-node {
   border-bottom-color: #e3ebf3;
@@ -3802,7 +3688,7 @@ button,
 .tab-btn,
 .filter-chip,
 .kpi-tile,
-.kanban-card,
+
 .task-item,
 .bom-node,
 .data-table tbody tr {
@@ -3816,7 +3702,8 @@ button,
 
   .page-container {
     padding: 20px;
-    animation: none; /* Disable expensive animations on smaller devices */
+    animation: none;
+    /* Disable expensive animations on smaller devices */
   }
 
   .page-header {
@@ -3829,9 +3716,10 @@ button,
     flex-wrap: wrap;
     width: 100%;
   }
-  
+
   .page-actions .btn {
-    flex: 1; /* Stretch buttons on mobile/tablet */
+    flex: 1;
+    /* Stretch buttons on mobile/tablet */
   }
 
   .tabs {

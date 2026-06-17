@@ -1,4 +1,5 @@
 import { showToast, showModal, navigateTo } from '../main.js';
+import { authFetch } from '../api/client.js';
 import { createPart, getParts, getPartById, getPartByNumber, updatePart, revisePart, deletePart, fetchSuppliers } from '../api/parts.js';
 import { createBom, getBomTree, updateBomLine, deleteBomLine, getBomLines, getBomWhereUsed, getBoms, getBomParts, getBomById, getAllBomsWithParts, addBomLine } from '../api/bom.js';
 
@@ -35,63 +36,7 @@ const MODEL_NUMBERS = [
   { code: 'U1', label: 'U1 - SUPER DX-SEARA' },
 ];
 
-// Column 3+4: Group Number (group digit + sub-group digit)
-const GROUP_NUMBERS = [
-  // Except for Hardware
-  { groupCode: '0', subCode: '1', label: '01 - Vehicle Assembly' },
-  { groupCode: '0', subCode: '2', label: '02 - Frame Assy' },
-  { groupCode: '0', subCode: '3', label: '03 - Brake Assy' },
-  { groupCode: '0', subCode: '4', label: '04 - Seating System' },
-  { groupCode: '0', subCode: '5', label: '05 - Body' },
-  { groupCode: '0', subCode: '6', label: '06 - Suspension System' },
-  { groupCode: '0', subCode: '7', label: '07 - Handle Bar' },
-  { groupCode: '0', subCode: '8', label: '08 - Wheel' },
-  { groupCode: '0', subCode: '9', label: '09 - Logo / Stickers' },
-  { groupCode: '1', subCode: '0', label: '10 - Control Cables' },
-  { groupCode: '1', subCode: '1', label: '11 - Dashboard' },
-  { groupCode: '1', subCode: '2', label: '12 - Tool & Tool Kit' },
-  { groupCode: '1', subCode: '3', label: '13 - Cab Components' },
-  { groupCode: '2', subCode: '0', label: '20 - Installation' },
-  { groupCode: '3', subCode: '1', label: '31 - Engine Assembly' },
-  { groupCode: '3', subCode: '2', label: '32 - Gear Box Assy' },
-  { groupCode: '3', subCode: '3', label: '33 - Axel Assy (Transmission Assy)' },
-  { groupCode: '3', subCode: '4', label: '34 - Gear' },
-  { groupCode: '3', subCode: '5', label: '35 - Shaft' },
-  { groupCode: '3', subCode: '6', label: '36 - Gasket / Rubber' },
-  { groupCode: '3', subCode: '7', label: '37 - Plastic Parts' },
-  { groupCode: '5', subCode: '1', label: '51 - Motor Assy' },
-  { groupCode: '5', subCode: '2', label: '52 - Battery System / Charger' },
-  { groupCode: '5', subCode: '3', label: '53 - Wiring' },
-  { groupCode: '5', subCode: '4', label: '54 - Switches' },
-  { groupCode: '5', subCode: '5', label: '55 - Lighting System' },
-  { groupCode: '5', subCode: '6', label: '56 - Horn / Instrument Cluster' },
-  { groupCode: '5', subCode: '7', label: '57 - Fuse' },
-  { groupCode: '5', subCode: '8', label: '58 - Controller' },
-  { groupCode: '5', subCode: '9', label: '59 - Sensor' },
-  { groupCode: '8', subCode: '1', label: '81 - Consumable Parts' },
-  { groupCode: '8', subCode: '2', label: '82 - Accessories Parts' },
-  { groupCode: '9', subCode: '1', label: '91 - Homologation Dwg' },
-  { groupCode: '9', subCode: '2', label: '92 - Workshop Manual' },
-  { groupCode: '9', subCode: '3', label: '93 - Parts Catalogue' },
-  { groupCode: '9', subCode: '4', label: '94 - Reference Assembly Dwg' },
-  { groupCode: '9', subCode: '5', label: '95 - Design Standard' },
-  { groupCode: '9', subCode: '6', label: '96 - Testing Standard' },
-  // For Hardware
-  { groupCode: '0', subCode: '1', label: 'H01 - Hexagonal Bolt', isHardware: true },
-  { groupCode: '0', subCode: '2', label: 'H02 - Hexagonal Nut', isHardware: true },
-  { groupCode: '0', subCode: '3', label: 'H03 - Socket Head Bolt', isHardware: true },
-  { groupCode: '0', subCode: '4', label: 'H04 - Bearing', isHardware: true },
-  { groupCode: '0', subCode: '5', label: 'H05 - Seals', isHardware: true },
-  { groupCode: '0', subCode: '6', label: 'H06 - Stud', isHardware: true },
-  { groupCode: '0', subCode: '7', label: 'H07 - Dowel Pin', isHardware: true },
-  { groupCode: '0', subCode: '8', label: 'H08 - Washer', isHardware: true },
-  { groupCode: '0', subCode: '9', label: 'H09 - Circlip', isHardware: true },
-  { groupCode: '1', subCode: '0', label: 'H10 - Key', isHardware: true },
-  { groupCode: '1', subCode: '1', label: 'H11 - Screw', isHardware: true },
-  { groupCode: '1', subCode: '2', label: 'H12 - Rivet', isHardware: true },
-  { groupCode: '1', subCode: '3', label: 'H13 - Pin', isHardware: true },
-  { groupCode: '1', subCode: '4', label: 'H14 - Hoop (Clip Nut)', isHardware: true },
-];
+const GROUP_NUMBERS = [];
 
 // Column 8: Machining Status (Assembly Status)
 const MACHINING_STATUS = [
@@ -341,11 +286,19 @@ function renderTabContent(tc, tab) {
 
 // ─── Create BOM Modal ────────────────────────────────────────
 async function openCreateBomModal() {
-  // Build group options
-  const standardGroups = GROUP_NUMBERS.filter(g => !g.isHardware);
-  const groupOpts = standardGroups.map(g =>
-    `<option value="${g.groupCode}:${g.subCode}">${g.label}</option>`
-  ).join('');
+  let groupOpts = '';
+  try {
+    const res = await authFetch('/api/Lookups/part-groups');
+    if (res.ok) {
+      const allGroups = await res.json();
+      const standardGroups = allGroups.filter(g => !g.isHardwareGroup);
+      groupOpts = standardGroups.map(g =>
+        `<option value="${g.groupCode}:${g.subGroupCode}">${g.groupCode}${g.subGroupCode} - ${g.name}</option>`
+      ).join('');
+    }
+  } catch (err) {
+    console.error('Error fetching group numbers:', err);
+  }
 
   showModal(
     'Create New BOM',
@@ -1368,8 +1321,17 @@ function renderBomCompare(tc) {
 }
 
 // ─── Create Part ─────────────────────────────────────────────
-function renderCreatePart(tc) {
-  const standardGroups = GROUP_NUMBERS.filter(g => !g.isHardware);
+async function renderCreatePart(tc) {
+  let standardGroups = [];
+  try {
+    const res = await authFetch('/api/Lookups/part-groups');
+    if (res.ok) {
+      const allGroups = await res.json();
+      standardGroups = allGroups.filter(g => !g.isHardwareGroup);
+    }
+  } catch (err) {
+    console.error('Error fetching group numbers:', err);
+  }
 
   tc.innerHTML = `
     <div class="card">
@@ -1405,7 +1367,7 @@ function renderCreatePart(tc) {
           <div class="form-group">
             <label class="form-label">Group Number <span style="color:#DC2626">*</span></label>
             <select class="form-select" id="cp-group">
-              ${standardGroups.map(g => `<option value="${g.groupCode}:${g.subCode}">${g.label}</option>`).join('')}
+              ${standardGroups.map(g => `<option value="${g.groupCode}:${g.subGroupCode}">${g.groupCode}${g.subGroupCode} - ${g.name}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">
@@ -1553,12 +1515,12 @@ function renderCreatePart(tc) {
     const [gc, sc] = String(tc.querySelector('#cp-group')?.value || '').split(':');
     const catCode = tc.querySelector('#cp-cat')?.value || '';
     const modelCode = tc.querySelector('#cp-model')?.value || '';
-    
+
     // Show loading state while fetching
     const el = tc.querySelector('#pn-final');
     if (el && (!el.dataset.fetching || el.textContent === '—')) {
-       el.dataset.fetching = 'true';
-       el.textContent = '...';
+      el.dataset.fetching = 'true';
+      el.textContent = '...';
     }
 
     const serial = await getNextSerial({ categoryCode: catCode, modelCode, groupCode: gc || '', subCode: sc || '' });
@@ -1572,7 +1534,7 @@ function renderCreatePart(tc) {
       revisionLetter: tc.querySelector('#cp-revision')?.value || 'A',
       devStatusCode: tc.querySelector('#cp-dev-status')?.value || 'X',
     });
-    
+
     if (el) {
       el.textContent = pn || '—';
       delete el.dataset.fetching;

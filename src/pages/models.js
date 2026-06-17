@@ -1,5 +1,7 @@
 import { showToast, showModal, navigateTo } from '../main.js';
+import { authFetch } from '../api/client.js';
 import { getVehicleModels, createVehicleModel, updateVehicleModel, deleteVehicleModel } from '../api/vehicles.js';
+import { openCreateBomModal } from './bom.js';
 
 export function renderModels(container) {
   container.innerHTML = `
@@ -12,29 +14,124 @@ export function renderModels(container) {
         <button class="btn btn-outline btn-sm" id="mdl-configurator">
           <span class="material-icons-outlined" style="font-size:16px">tune</span>Configurator
         </button>
+        <button class="btn btn-outline btn-sm" id="mdl-create-bom" style="border-color:var(--brand-secondary);color:var(--brand-secondary)">
+          <span class="material-icons-outlined" style="font-size:16px">account_tree</span>Create BOM
+        </button>
         <button class="btn btn-primary btn-sm" id="mdl-add">
           <span class="material-icons-outlined" style="font-size:16px">add_circle</span>Add Model
         </button>
       </div>
     </div>
 
-    <div class="tabs" id="mdl-tabs">
-      <button class="tab-btn active" data-tab="catalogue">Product Catalogue</button>
-      <button class="tab-btn" data-tab="matrix">Variant Matrix</button>
     </div>
 
-    <div id="mdl-tab-content"></div>
+    <div id="mdl-content" style="margin-top: 16px;"></div>
   `;
 
-  container.querySelectorAll('#mdl-tabs .tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      container.querySelectorAll('#mdl-tabs .tab-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      renderModelTab(container.querySelector('#mdl-tab-content'), btn.dataset.tab);
+  // ── Create BOM from Model ──────────────────────────────────
+  container.querySelector('#mdl-create-bom')?.addEventListener('click', async () => {
+    // Show a loading state in a model picker modal
+    showModal('Create BOM — Select Model',
+      `<div style="padding:4px 0 12px">
+         <p class="text-sm text-secondary" style="margin-bottom:14px">Select a vehicle model to automatically populate the BOM creation form.</p>
+         <div class="form-group">
+           <label class="form-label">Vehicle Model <span style="color:#DC2626">*</span></label>
+           <select class="form-select" id="bom-model-picker">
+             <option value="">Loading models…</option>
+           </select>
+         </div>
+         <div id="bom-model-preview" style="margin-top:14px;display:none">
+           <div style="background:var(--bg-muted);border-radius:var(--radius-md);padding:14px 18px;border:1px solid var(--border-light)">
+             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:0.82rem">
+               <div><span style="color:var(--text-secondary)">Model Code:</span> <span id="bmp-code" style="font-family:var(--font-mono);font-weight:700"></span></div>
+               <div><span style="color:var(--text-secondary)">Category:</span> <span id="bmp-cat"></span></div>
+               <div><span style="color:var(--text-secondary)">Category Code:</span> <span id="bmp-catcode" style="font-family:var(--font-mono)"></span></div>
+               <div><span style="color:var(--text-secondary)">Segment:</span> <span id="bmp-seg"></span></div>
+               <div style="grid-column:1/-1"><span style="color:var(--text-secondary)">Description:</span> <span id="bmp-desc"></span></div>
+             </div>
+           </div>
+         </div>
+       </div>`,
+      `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+       <button class="btn btn-primary" id="bom-picker-confirm" disabled>
+         <span class="material-icons-outlined" style="font-size:16px;vertical-align:-3px">account_tree</span>
+         Open BOM Form
+       </button>`
+    );
+
+    // Fetch models and populate dropdown
+    let allModels = [];
+    try {
+      const raw = await getVehicleModels();
+      allModels = Array.isArray(raw) ? raw : Object.values(raw).flat();
+    } catch (err) {
+      console.error('[CREATE BOM] Could not fetch vehicle models:', err);
+      showToast('Failed to load vehicle models', 'error');
+      allModels = [];
+    }
+
+    const picker = document.getElementById('bom-model-picker');
+    const preview = document.getElementById('bom-model-preview');
+    const confirmBtn = document.getElementById('bom-picker-confirm');
+
+    if (!picker) return;
+
+    if (!allModels.length) {
+      picker.innerHTML = '<option value="">No models found</option>';
+    } else {
+      picker.innerHTML = '<option value="">Select a model…</option>' +
+        allModels.map(m =>
+          `<option value="${m.id}">${m.code ? `[${m.code}] ` : ''}${m.name || 'Unnamed Model'}</option>`
+        ).join('');
+    }
+
+    // Show preview card when a model is selected
+    picker.addEventListener('change', () => {
+      const selectedId = picker.value;
+      const model = allModels.find(m => String(m.id) === String(selectedId));
+
+      if (!model) {
+        preview.style.display = 'none';
+        confirmBtn.disabled = true;
+        return;
+      }
+
+      document.getElementById('bmp-code').textContent = model.code || '-';
+      document.getElementById('bmp-cat').textContent = model.categoryLabel || '-';
+      document.getElementById('bmp-catcode').textContent = model.categoryCode || '-';
+      document.getElementById('bmp-seg').textContent = model.segment || '-';
+      document.getElementById('bmp-desc').textContent = model.description || '-';
+      preview.style.display = 'block';
+      confirmBtn.disabled = false;
+    });
+
+    // Open the BOM form pre-filled with the selected model
+    confirmBtn?.addEventListener('click', () => {
+      const selectedId = picker.value;
+      const model = allModels.find(m => String(m.id) === String(selectedId));
+      if (!model) return showToast('Please select a model first', 'error');
+
+      // Close the picker modal
+      document.querySelector('.modal-overlay')?.remove();
+
+      // Build the prefill object mapping model fields → BOM fields
+      const prefill = {
+        categoryCode: model.categoryCode || '',
+        modelCode: model.code || '',
+        name: model.name || '',
+        description: model.description || '',
+        vehicleModelId: model.id || 0,
+        teamId: model.teamId || '',
+        parentBOMId: model.parentBOMId || '',
+      };
+
+      // Open the BOM creation form with prefill data
+      openCreateBomModal(prefill);
     });
   });
 
   container.querySelector('#mdl-add')?.addEventListener('click', () => {
+
     showModal('Register New Vehicle Model',
       `<div class="grid-2" style="gap:16px;max-height:60vh;overflow-y:auto;padding-right:8px;">
         <div class="form-group"><label class="form-label">Model Name <span style="color:#DC2626">*</span></label><input class="form-input" id="mdl-name" placeholder="e.g. Storm X1" /></div>
@@ -122,16 +219,11 @@ export function renderModels(container) {
     window._showToast = showToast;
   });
 
-  renderModelTab(container.querySelector('#mdl-tab-content'), 'catalogue');
+  renderCatalogue(container.querySelector('#mdl-content'));
 }
 
 const STATUS_TAG = { production: 'badge-released', pilot: 'badge-review', concept: 'badge-draft' };
 const STATUS_LABEL = { production: 'Production', pilot: 'Pilot Build', concept: 'Concept' };
-
-function renderModelTab(tc, tab) {
-  if (tab === 'catalogue') renderCatalogue(tc);
-  else renderMatrix(tc);
-}
 
 function renderCatalogue(tc) {
   // Show loading skeleton and filter bar
@@ -404,48 +496,6 @@ function buildCatalogueCards(tc, models) {
         });
       }, 50);
     });
-  });
-}
-
-function renderMatrix(tc) {
-  tc.innerHTML = `
-    <div class="filter-bar" style="margin-bottom:16px">
-      <span class="text-sm text-secondary">Family:</span>
-      <select class="form-select" style="width:220px;padding:6px 10px" id="matrix-family">
-        <option>E-Luna Moped Family (GA)</option>
-        <option>Zulu High-Speed (GF)</option>
-        <option>Safar Smart (BA)</option>
-        <option>K-Star DX (BD)</option>
-      </select>
-    </div>
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title"><span class="material-icons-outlined">grid_on</span>Variant Dimension Matrix — E-Luna Family</div>
-        <button class="btn btn-outline btn-xs" id="export-matrix"><span class="material-icons-outlined" style="font-size:14px">download</span>Export</button>
-      </div>
-      <div class="card-body no-pad">
-        <div class="variant-matrix">
-          <table class="data-table">
-            <thead>
-              <tr><th>Variant Name</th><th>Model Code</th><th>Battery Config</th><th>Motor Power</th><th>Display Cluster</th><th>Connectivity</th><th>Braking</th><th>Price (ex-subsidy)</th><th>Status</th></tr>
-            </thead>
-            <tbody>
-              <tr><td class="model-name">E-Luna Go</td><td style="font-family:var(--font-mono)">GA1</td><td>1.5 kWh Swappable</td><td>250W 48V Hub</td><td>Analog Speedometer</td><td>None (Base)</td><td>Drum / Drum</td><td style="font-weight:600">₹ 59,999</td><td><span class="badge badge-released badge-sm">Active</span></td></tr>
-              <tr><td class="model-name">E-Luna Plus</td><td style="font-family:var(--font-mono)">GA1</td><td>2.0 kWh Fixed</td><td>250W 48V Hub</td><td>Analog Speedometer</td><td>Bluetooth App</td><td>Drum / Drum</td><td style="font-weight:600">₹ 69,999</td><td><span class="badge badge-released badge-sm">Active</span></td></tr>
-              <tr><td class="model-name">E-Luna Next</td><td style="font-family:var(--font-mono)">GA2</td><td>2.4 kWh Fixed</td><td>350W 48V Hub</td><td>Digital LCD Mono</td><td>Bluetooth App</td><td>Disc / Drum</td><td style="font-weight:600">₹ 79,999</td><td><span class="badge badge-released badge-sm">Active</span></td></tr>
-              <tr><td class="model-name">E-Luna Pro</td><td style="font-family:var(--font-mono)">GG1</td><td>3.0 kWh Fixed</td><td>500W 72V Hub</td><td>Digital LCD Mono</td><td>GPS + IoT Telematics</td><td>Disc / Drum</td><td style="font-weight:600">₹ 89,999</td><td><span class="badge badge-released badge-sm">Active</span></td></tr>
-              <tr><td class="model-name">E-Luna Prime</td><td style="font-family:var(--font-mono)">GG1</td><td>Twin 3.0 kWh</td><td>500W 72V Hub</td><td>TFT 4.3" Colour</td><td>Full Fleet Suite + OTA</td><td>Disc / Disc</td><td style="font-weight:600">₹ 99,999</td><td><span class="badge badge-released badge-sm">Active</span></td></tr>
-              <tr style="background:var(--brand-primary-lighter)"><td class="model-name" style="color:var(--brand-primary)">E-Luna Ultra (Planned)</td><td style="font-family:var(--font-mono);color:var(--brand-primary)">GH1</td><td>4.0 kWh Fixed</td><td>800W 72V Hub</td><td>TFT 7" Smart Cluster</td><td>Full Fleet + V2G</td><td>Disc / Disc CBS</td><td style="font-weight:600">₹ 1,19,999</td><td><span class="badge badge-review badge-sm">Planned</span></td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>`;
-
-  tc.querySelector('#matrix-family')?.addEventListener('change', (e) => showToast(`Switched to ${e.target.value} matrix`, 'info'));
-  tc.querySelector('#export-matrix')?.addEventListener('click', () => {
-    showToast('Exporting variant matrix to Excel…', 'info');
-    setTimeout(() => showToast('Matrix exported!', 'success'), 1200);
   });
 }
 
