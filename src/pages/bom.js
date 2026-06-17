@@ -209,8 +209,8 @@ export function renderBOM(container) {
 
     <div class="tabs" id="bom-tabs">
       <button class="tab-btn active" data-tab="bom-nav">BOM Navigator</button>
-      <!-- <button class="tab-btn" data-tab="team-boms">Team BOMs</button>
-      <button class="tab-btn" data-tab="bom-parts">BOM Parts</button> -->
+      <button class="tab-btn" data-tab="team-boms">Team BOMs</button>
+      <button class="tab-btn" data-tab="bom-parts">BOM Parts</button>
       <button class="tab-btn" data-tab="bom-compare">BOM Compare</button>
     </div>
 
