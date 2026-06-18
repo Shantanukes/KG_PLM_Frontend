@@ -44,10 +44,10 @@ export function renderAdmin(container) {
         <div class="form-group"><label class="form-label">Email Address <span style="color:#DC2626">*</span></label><input class="form-input" id="inv-email" type="email" placeholder="suresh.iyer@kineticgreen.com" /></div>
         <div class="form-group"><label class="form-label">Role / Access Profile</label>
           <select class="form-select" id="inv-role">
-            <option value="0">None</option><option value="8">R&D Head</option><option value="7">Project Head</option><option value="6">Designer</option><option value="4">COE Head</option><option value="3">Project Manager</option><option value="2">Quality Auditor</option><option value="1">Super Admin</option>
+            <option value="0">None</option><option value="8">R&D Head</option><option value="7">Project Head</option><option value="6">Designer</option><option value="4">COE Head</option><option value="3">Project Manager</option><option value="2">Quality Auditor</option><option value="1">Super Admin</option><option value="9">Sourcing</option><option value="10">Proto</option><option value="11">Founder</option><option value="12">Co-Founder</option>
           </select></div>
         <div class="form-group"><label class="form-label">Department</label>
-          <select class="form-select" id="inv-dept"><option value="1">R&D / Engineering</option><option value="2">Quality</option><option value="4">Manufacturing</option><option value="3">SEM</option><option value="5">IT / Systems</option></select></div>
+          <select class="form-select" id="inv-dept"><option value="0">None</option><option value="1">R&D / Engineering</option><option value="2">Quality</option><option value="4">Manufacturing</option><option value="3">SEM</option><option value="5">IT / Systems</option></select></div>
        </div>`,
       `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
        <button class="btn btn-primary" id="send-invite">Send Invite</button>`
@@ -187,6 +187,7 @@ function renderUsers(tc) {
             }
 
             const dMap = {
+              0: 'None', 'None': 'None',
               1: 'R&D / Engineering', 'R_AND_D_Engineering': 'R&D / Engineering', 'R&D / Engineering': 'R&D / Engineering',
               2: 'Quality', 'Quality': 'Quality',
               3: 'SEM', 'SEM': 'SEM',
@@ -218,7 +219,7 @@ function renderUsers(tc) {
                     </thead>
                     <tbody>
                       ${membersList.map(m => {
-                const rMap = { 0: 'None', 1: 'Super Admin', 2: 'Quality Auditor', 3: 'Project Manager', 4: 'COE Head', 6: 'Designer', 7: 'Project Head', 8: 'R&D Head', 'RnDHead': 'R&D Head', 'SuperAdmin': 'Super Admin' };
+                const rMap = { 0: 'None', 1: 'Super Admin', 2: 'Quality Auditor', 3: 'Project Manager', 4: 'COE Head', 6: 'Designer', 7: 'Project Head', 8: 'R&D Head', 9: 'Sourcing', 10: 'Proto', 11: 'Founder', 12: 'Co-Founder', 'RnDHead': 'R&D Head', 'SuperAdmin': 'Super Admin', 'Co-Founder': 'Co-Founder', 'Founder': 'Founder', 'Proto': 'Proto', 'Sourcing': 'Sourcing' };
                 let rName = rMap[m.role] !== undefined ? rMap[m.role] : String(m.role).replace(/_/g, ' ');
                 rName = typeof rName === 'string' ? rName.replace(/RnD/ig, 'R&D') : rName;
                 const roleDisplay = m.role !== undefined && m.role !== null ? rName : 'N/A';
@@ -262,6 +263,10 @@ function renderUsers(tc) {
                     <option value="3">Project Manager</option>
                     <option value="2">Quality Auditor</option>
                     <option value="1">Super Admin</option>
+                    <option value="9">Sourcing</option>
+                    <option value="10">Proto</option>
+                    <option value="11">Founder</option>
+                    <option value="12">Co-Founder</option>
                   </select>
                   <button class="btn btn-primary" id="btn-add-member" style="white-space: nowrap;">Add Member</button>
                 </div>

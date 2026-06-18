@@ -88,7 +88,7 @@ export function getCurrentUserRole() {
 
 function getAllowedPages() {
   const role = getCurrentUserRole().toLowerCase();
-  
+
   if (role === 'designer' || role === '6') {
     const designerAllowed = [
       'parts', 'bom', 'documents', 'upload-drawing', 'workflows',
@@ -97,7 +97,7 @@ function getAllowedPages() {
     ];
     return PAGE_DEFINITIONS.map((p) => p.id).filter(id => designerAllowed.includes(id));
   }
-  
+
   // Default to all pages for other roles
   return PAGE_DEFINITIONS.map((page) => page.id);
 }
@@ -743,11 +743,16 @@ function openProfileModal() {
           <option value="3">Project Manager</option>
           <option value="2">Quality Auditor</option>
           <option value="1">Super Admin</option>
+          <option value="9">Sourcing</option>
+          <option value="10">Proto</option>
+          <option value="11">Founder</option>
+          <option value="12">Co-Founder</option>
         </select>
       </div>
       <div class="form-group" style="margin-bottom: 24px;">
         <label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">Department <span style="color:#DC2626">*</span></label>
         <select class="form-select" id="prof-dept" style="width:100%;">
+          <option value="0">None</option>
           <option value="1">R&D / Engineering</option>
           <option value="2">Quality</option>
           <option value="4">Manufacturing</option>
