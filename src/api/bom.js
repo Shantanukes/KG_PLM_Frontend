@@ -171,3 +171,49 @@ export async function linkBomWithParent(childBomId, parentBOMId) {
   if (!response.ok) throw new Error(getErrorMessageFromResponse(rawData, `Failed to link BOM with parent (${response.status})`));
   return rawData;
 }
+
+export async function linkPartToBOM(bomId, partId) {
+  let response = await authFetch(`/api/BOM/${bomId}/link-part`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ partId })
+  });
+  if (response.status === 404) {
+    response = await authFetch(`/api/bom/${bomId}/link-part`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ partId })
+    });
+  }
+  if (!response.ok) {
+    let errRaw;
+    try { errRaw = await response.json(); } catch { errRaw = null; }
+    throw new Error(errRaw?.message || `Failed to link part to BOM (${response.status})`);
+  }
+  let rawData = null;
+  try { rawData = await response.json(); } catch { rawData = null; }
+  return rawData;
+}
+
+export async function unlinkPartFromBOM(bomId, partId) {
+  let response = await authFetch(`/api/BOM/${bomId}/unlink-part`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ partId })
+  });
+  if (response.status === 404) {
+    response = await authFetch(`/api/bom/${bomId}/unlink-part`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ partId })
+    });
+  }
+  if (!response.ok) {
+    let errRaw;
+    try { errRaw = await response.json(); } catch { errRaw = null; }
+    throw new Error(errRaw?.message || `Failed to unlink part from BOM (${response.status})`);
+  }
+  let rawData = null;
+  try { rawData = await response.json(); } catch { rawData = null; }
+  return rawData;
+}

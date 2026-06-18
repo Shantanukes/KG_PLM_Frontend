@@ -1,7 +1,7 @@
 import { showToast, showModal, navigateTo, getCurrentUserRole } from '../main.js';
 import { authFetch } from '../api/client.js';
 import { createPart, getParts, getPartById, getPartByNumber, updatePart } from '../api/parts.js';
-import { createBom, getBomTree, updateBomLine, deleteBomLine, getBomLines, getBomWhereUsed, getBomByTeamId, getBomParts, getAllBomsWithParts, linkBomWithParent } from '../api/bom.js';
+import { createBom, getBomTree, updateBomLine, deleteBomLine, getBomLines, getBomWhereUsed, getBomByTeamId, getBomParts, getAllBomsWithParts, linkBomWithParent, linkPartToBOM, unlinkPartFromBOM } from '../api/bom.js';
 
 // ─── Master Data from PartNo.xlsx ───────────────────────────
 // Column 1: Product Category
@@ -257,12 +257,276 @@ function renderTabContent(tc, tab) {
 // ─── Part Linking ───────────────────────────────────────────────
 async function renderPartLinking(tc) {
   tc.innerHTML = `
-    <div class="card">
-      <div class="card-body">
-        <h3 style="margin-bottom:12px;">Part Linking</h3>
-        <p class="text-secondary">Link individual parts across BOMs or components here. (Under construction)</p>
+    <div style="display: flex; gap: 20px; align-items: flex-start;">
+      <!-- Left Panel: BOM Selection -->
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 16px;">
+        <div class="card">
+          <div class="card-body" style="padding:16px">
+            <h3 style="margin-bottom:12px;">1. Select BOM</h3>
+            <p class="text-secondary" style="margin-bottom:12px; font-size: 13px;">Enter a BOM ID to view its currently linked parts.</p>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="number" id="part-link-bom-input" class="form-input" placeholder="Enter BOM ID (e.g. 1)" style="flex:1" />
+              <button class="btn btn-primary" id="btn-load-bom">Load BOM</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body" style="padding:0">
+            <div style="padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 500;">Currently Linked Parts</div>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Part Number</th>
+                  <th>Part Name</th>
+                  <th style="width: 80px; text-align: center;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="linked-parts-results">
+                <tr><td colspan="3" style="text-align:center;padding:20px">Please load a BOM first.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
-    </div>`;
+
+      <!-- Right Panel: Part Search -->
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 16px;">
+        <div class="card">
+          <div class="card-body" style="padding:16px">
+            <h3 style="margin-bottom:12px;">2. Search & Link Parts</h3>
+            <p class="text-secondary" style="margin-bottom:12px; font-size: 13px;">Search for parts to link to the loaded BOM.</p>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="text" id="part-link-search-input" class="form-input" placeholder="Search by name or number..." style="flex:1" />
+              <button class="btn btn-primary" id="btn-search-parts">Search Parts</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body" style="padding:0">
+            <div style="padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 500;">Search Results</div>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Part Number</th>
+                  <th>Part Name</th>
+                  <th style="width: 80px; text-align: center;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="search-parts-results">
+                <tr><td colspan="3" style="text-align:center;padding:20px">Search for parts to link.</td></tr>
+              </tbody>
+            </table>
+            <div class="pagination" id="search-parts-pagination" style="display:none; justify-content:space-between; align-items:center; padding:12px 16px; border-top:1px solid var(--border)">
+              <div class="text-xs text-secondary">
+                <span id="sp-start">0</span>-<span id="sp-end">0</span> of <span id="sp-total">0</span>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <button class="btn btn-outline btn-sm" id="sp-prev">Prev</button>
+                <button class="btn btn-outline btn-sm" id="sp-next">Next</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  let currentBomId = null;
+  let linkedPartIds = new Set();
+  
+  const linkedTbody = tc.querySelector('#linked-parts-results');
+  const searchTbody = tc.querySelector('#search-parts-results');
+  const paginationDiv = tc.querySelector('#search-parts-pagination');
+
+  // Load BOM
+  tc.querySelector('#btn-load-bom')?.addEventListener('click', async () => {
+    const bomIdInput = tc.querySelector('#part-link-bom-input').value.trim();
+    if (!bomIdInput) {
+      showToast('Please enter a BOM ID', 'error');
+      return;
+    }
+    
+    currentBomId = parseInt(bomIdInput, 10);
+    linkedTbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px">Loading linked parts...</td></tr>';
+
+    try {
+      let linkedItems = [];
+      try {
+        const linkedParts = await getBomParts(currentBomId);
+        linkedItems = Array.isArray(linkedParts) ? linkedParts : (linkedParts?.items || [linkedParts]);
+      } catch (err) {
+         console.warn("No linked parts found or error:", err);
+      }
+      
+      const items = linkedItems.filter(Boolean);
+      linkedPartIds = new Set(items.map(lp => lp.id || lp.partId));
+      
+      if (items.length === 0) {
+        linkedTbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px">No parts linked to this BOM yet.</td></tr>';
+      } else {
+        linkedTbody.innerHTML = items.map(p => `
+          <tr data-id="${p.id || p.partId}">
+            <td class="part-number">${p.partNumber || '-'}</td>
+            <td>${p.name || '-'}</td>
+            <td style="text-align: center;">
+              <button class="btn btn-outline btn-sm btn-unlink-part" data-part-id="${p.id || p.partId}" style="color:var(--danger); border-color:var(--danger)">Unlink</button>
+            </td>
+          </tr>
+        `).join('');
+
+        // Attach unlink listeners
+        linkedTbody.querySelectorAll('.btn-unlink-part').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            const partId = parseInt(e.target.dataset.partId, 10);
+            e.target.disabled = true;
+            try {
+              await unlinkPartFromBOM(currentBomId, partId);
+              showToast('Part unlinked successfully', 'success');
+              tc.querySelector('#btn-load-bom').click(); // refresh list
+              if (searchTbody.querySelector(`[data-part-id="${partId}"]`)) {
+                // If it's in search results, refresh search results to show "Link" again
+                tc.querySelector('#btn-search-parts').click();
+              }
+            } catch (err) {
+              showToast(err.message || 'Failed to unlink part', 'error');
+              e.target.disabled = false;
+            }
+          });
+        });
+      }
+      
+      // If search results are already showing, refresh them so the "Link" buttons update state
+      if (allSearchParts.length > 0) {
+         displaySearchResults();
+      }
+
+    } catch (err) {
+      console.error('[LOAD BOM]', err);
+      linkedTbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;color:red">Failed to load BOM.</td></tr>';
+      showToast(err.message || 'Error loading BOM parts', 'error');
+    }
+  });
+
+  // Search Parts
+  let allSearchParts = [];
+  let currentPage = 1;
+  const itemsPerPage = 10;
+
+  const displaySearchResults = () => {
+    if (!allSearchParts || allSearchParts.length === 0) {
+      searchTbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px">No parts found.</td></tr>';
+      paginationDiv.style.display = 'none';
+      return;
+    }
+
+    const totalPages = Math.ceil(allSearchParts.length / itemsPerPage);
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = Math.min(startIndex + itemsPerPage, allSearchParts.length);
+    const paginatedItems = allSearchParts.slice(startIndex, endIndex);
+
+    searchTbody.innerHTML = paginatedItems.map(p => {
+      const isLinked = linkedPartIds.has(p.id);
+      return `
+      <tr>
+        <td class="part-number">${p.partNumber || '-'}</td>
+        <td>${p.name || '-'}</td>
+        <td style="text-align: center;">
+          ${isLinked 
+            ? `<button class="btn btn-outline btn-sm btn-unlink-part" data-part-id="${p.id}" style="color:var(--danger); border-color:var(--danger)">Unlink</button>` 
+            : `<button class="btn btn-primary btn-sm btn-link-part" data-part-id="${p.id}">Link</button>`
+          }
+        </td>
+      </tr>
+    `}).join('');
+
+    // Attach link listeners
+    searchTbody.querySelectorAll('.btn-link-part').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        if (!currentBomId) {
+          showToast('Please load a BOM first before linking parts.', 'error');
+          return;
+        }
+        const partId = parseInt(e.target.dataset.partId, 10);
+        e.target.disabled = true;
+        try {
+          await linkPartToBOM(currentBomId, partId);
+          showToast('Part linked successfully', 'success');
+          tc.querySelector('#btn-load-bom').click(); // refresh linked list
+        } catch (err) {
+          showToast(err.message || 'Failed to link part', 'error');
+          e.target.disabled = false;
+        }
+      });
+    });
+
+    // Attach unlink listeners
+    searchTbody.querySelectorAll('.btn-unlink-part').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        if (!currentBomId) return;
+        const partId = parseInt(e.target.dataset.partId, 10);
+        e.target.disabled = true;
+        try {
+          await unlinkPartFromBOM(currentBomId, partId);
+          showToast('Part unlinked successfully', 'success');
+          tc.querySelector('#btn-load-bom').click(); // refresh list
+        } catch (err) {
+          showToast(err.message || 'Failed to unlink part', 'error');
+          e.target.disabled = false;
+        }
+      });
+    });
+
+    paginationDiv.style.display = 'flex';
+    tc.querySelector('#sp-start').textContent = startIndex + 1;
+    tc.querySelector('#sp-end').textContent = endIndex;
+    tc.querySelector('#sp-total').textContent = allSearchParts.length;
+    tc.querySelector('#sp-prev').disabled = currentPage === 1;
+    tc.querySelector('#sp-next').disabled = currentPage === totalPages;
+  };
+
+  tc.querySelector('#sp-prev')?.addEventListener('click', () => {
+    if (currentPage > 1) {
+      currentPage--;
+      displaySearchResults();
+    }
+  });
+
+  tc.querySelector('#sp-next')?.addEventListener('click', () => {
+    const totalPages = Math.ceil(allSearchParts.length / itemsPerPage);
+    if (currentPage < totalPages) {
+      currentPage++;
+      displaySearchResults();
+    }
+  });
+
+  tc.querySelector('#btn-search-parts')?.addEventListener('click', async () => {
+    const query = tc.querySelector('#part-link-search-input').value.trim().toLowerCase();
+    searchTbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px">Searching parts...</td></tr>';
+    paginationDiv.style.display = 'none';
+
+    try {
+      currentPage = 1;
+      // Use the getParts API. We fetch heavily cached data or ask the backend.
+      const defaultParams = { page: 1, pageSize: 10000 };
+      const partsData = await getParts(defaultParams);
+      let items = Array.isArray(partsData) ? partsData : (partsData?.items || []);
+      
+      // Client-side filter based on query (similar to parts.js)
+      if (query) {
+         items = items.filter(p => (p.name || '').toLowerCase().includes(query) || (p.partNumber || '').toLowerCase().includes(query));
+      }
+      
+      allSearchParts = items;
+      displaySearchResults();
+    } catch (err) {
+      console.error('[PART SEARCH]', err);
+      searchTbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;color:red">Failed to search parts.</td></tr>';
+      showToast(err.message || 'Error searching parts', 'error');
+    }
+  });
 }
 
 // ─── Team BOMs ───────────────────────────────────────────────
