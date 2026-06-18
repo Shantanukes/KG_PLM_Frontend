@@ -465,6 +465,9 @@ async function renderMyTasks(tc) {
           const itemType = e.target.dataset.type;
           const resolvedType = data.approvalType || itemType;
           const isApprovable = resolvedType === 'PartNumber' || resolvedType?.toLowerCase() === 'drawing';
+          const currentUserRole = (getCurrentUserRole() || '').toLowerCase().replace(/\s/g, '');
+          const isDesignerRole = currentUserRole === 'designer';
+          const isDesignerRejected = isDesignerRole && ((data.status || '').toLowerCase() === 'rejected' || (data.result || '').toLowerCase() === 'rejected' || (data.currentApprovalStage || '').toLowerCase().includes('reject'));
 
           const overlay = showModal('Current Approval Stage',
             `<div style="font-family:var(--font-mono); font-size:14px; line-height: 1.6; padding: 10px;">
@@ -472,7 +475,7 @@ async function renderMyTasks(tc) {
                <div style="margin-bottom: 12px;"><strong>Current Stage:</strong> <span class="badge" style="background:#F59E0B;color:#fff;">${data.currentApprovalStage || 'N/A'}</span></div>
                <div style="margin-bottom: 12px;"><strong>Assigned To:</strong> ${data.name || 'N/A'}</div>
                <div><strong>Role:</strong> ${data.role || 'N/A'}</div>
-               ${isApprovable ? `
+               ${(isApprovable && !isDesignerRole) ? `
                  <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border-light);" />
                  <div class="form-group" style="margin-bottom: 12px;">
                    <label class="form-label">Comments</label>
@@ -482,178 +485,7 @@ async function renderMyTasks(tc) {
                    <input type="checkbox" id="stage-revert-designer" />
                    <label for="stage-revert-designer" style="font-size: 13px;">Revert to Designer </label>
                  </div>
-                 ${(data.role || '').toLowerCase().replace(/\s/g, '') === 'coehead' ? `
-                 <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
-                   <input type="checkbox" id="stage-revert-pm" />
-                   <label for="stage-revert-pm" style="font-size: 13px;">Revert through PM </label>
-                 </div>` : ''}
-               ` : ''}
-             </div>`,
-            `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Close</button>
-             ${isApprovable ? `
-               <button class="btn btn-danger" id="reject-stage-btn">Reject</button>
-               <button class="btn btn-primary" id="approve-stage-btn">Approve</button>
-             ` : ''}`
-          );
-
-          if (isApprovable) {
-            overlay.querySelector('#approve-stage-btn')?.addEventListener('click', async (btnEv) => {
-              const comments = overlay.querySelector('#stage-comments')?.value?.trim() || '';
-              const btn = btnEv.currentTarget;
-              btn.disabled = true;
-              btn.textContent = 'Approving...';
-              try {
-                if (resolvedType === 'PartNumber') {
-                  await approvePartNumber(entityId, { comments, revertToDesigner: false, revertThroughPM: false, selectedPMId: 0 });
-                } else {
-                  await approveDrawing(entityId, { comments, revertToDesigner: false, revertThroughPM: false, selectedPMId: 0 });
-                }
-                showToast('Approved successfully', 'success');
-                overlay.remove();
-                const activeTab = document.querySelector('#wf-tabs .tab-btn.active')?.dataset.tab;
-                if (activeTab) renderWFTab(document.querySelector('#wf-tab-content'), activeTab);
-              } catch (e) {
-                showToast('Failed to approve', 'error');
-                btn.disabled = false;
-                btn.textContent = 'Approve';
-              }
-            });
-
-            overlay.querySelector('#reject-stage-btn')?.addEventListener('click', async (btnEv) => {
-              const comments = overlay.querySelector('#stage-comments')?.value?.trim() || '';
-              const revertToDesigner = overlay.querySelector('#stage-revert-designer')?.checked || false;
-              const revertThroughPM = overlay.querySelector('#stage-revert-pm')?.checked || false;
-              const btn = btnEv.currentTarget;
-              btn.disabled = true;
-              btn.textContent = 'Rejecting...';
-              try {
-                if (resolvedType === 'PartNumber') {
-                  await rejectPartNumber(entityId, { comments, revertToDesigner, revertThroughPM, selectedPMId: 0 });
-                } else {
-                  await rejectDrawing(entityId, { comments, revertToDesigner, revertThroughPM, selectedPMId: 0 });
-                }
-                showToast('Rejected successfully', 'success');
-                overlay.remove();
-                const activeTab = document.querySelector('#wf-tabs .tab-btn.active')?.dataset.tab;
-                if (activeTab) renderWFTab(document.querySelector('#wf-tab-content'), activeTab);
-              } catch (e) {
-                showToast('Failed to reject', 'error');
-                btn.disabled = false;
-                btn.textContent = 'Reject';
-              }
-            });
-          }
-        } else {
-          showToast('Failed to fetch approval stage', 'error');
-        }
-      } catch (err) {
-        showToast('Error fetching approval stage', 'error');
-      } finally {
-        e.target.textContent = prevText;
-        e.target.disabled = false;
-      }
-    });
-  });
-
-}
-
-async function renderInProgress(tc) {
-  tc.innerHTML = '<div style="padding: 20px; text-align: center;">Loading Pending workflows...</div>';
-  let tasks = [];
-  try {
-    const apiData = await fetchPendingApprovals();
-    const fetchedTasks = Array.isArray(apiData) ? apiData : (apiData?.items || []);
-
-    tasks = fetchedTasks.map(t => {
-      return {
-        id: t.approvalId ? `APP-${t.approvalId}` : `WF-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
-        subject: `Review ${t.approvalType || 'Approval'}: ${t.partName || ''} — ${t.stage || ''}`,
-        type: t.approvalType || 'Workflow',
-        step: t.stage || 'Pending',
-        assignee: 'Me',
-        started: t.createdAt ? new Date(t.createdAt).toLocaleDateString() : 'N/A',
-        ref: t.partNumber || '-',
-        entityId: t.partId
-      };
-    });
-  } catch (err) {
-    console.error('Failed to load Pending workflows', err);
-  }
-
-  tc.innerHTML = `
-    <div class="card">
-      <div class="card-header"><div class="card-title">Pending Workflows</div></div>
-      <div class="card-body no-pad">
-        <table class="data-table">
-          <thead><tr><th>Workflow ID</th><th>Subject</th><th>Type</th><th>Current Step</th><th>Assignee</th><th>Started</th><th>Part Ref</th><th>Action</th></tr></thead>
-          <tbody>
-            ${tasks.length ? tasks.map(t => `
-              <tr>
-                <td style="font-family:var(--font-mono);font-weight:600;">${t.id}</td>
-                <td style="max-width:280px;white-space:normal;line-height:1.4;">${t.subject}</td>
-                <td><span class="tag">${t.type}</span></td>
-                <td><span class="badge" style="background:#F59E0B; color:#fff; border:none; padding:4px 8px; border-radius:4px;">${t.step}</span></td>
-                <td>${t.assignee}</td>
-                <td>${t.started}</td>
-                <td style="font-family:var(--font-mono); font-size:0.857rem;">${t.ref}</td>
-                <td>
-                  <button class="btn btn-outline btn-xs view-wf-btn" data-id="${t.id}" style="margin-right:4px;">View</button>
-                  ${(t.type === 'UploadDrawing' || t.type === 'ReUploadDrawing') ?
-      `<button class="btn btn-primary btn-xs nav-upload-btn" data-part="${t.ref !== '-' ? t.ref : t.entityId}">Upload Drawing</button>` :
-      ((t.type === 'Part' || t.type === 'PartNumber' || t.type?.toLowerCase() === 'drawing') ? `<button class="btn btn-outline btn-xs view-stage-btn" data-id="${t.entityId}" data-type="${t.type}">View Stage</button>` : '')}
-                </td>
-              </tr>
-            `).join('') : '<tr><td colspan="8" class="text-center text-secondary py-4" style="text-align: center;">No Pending workflows</td></tr>'}
-          </tbody>
-        </table>
-      </div>
-    </div>`;
-
-  tc.querySelectorAll('.view-wf-btn').forEach(btn => {
-    btn.addEventListener('click', () => showToast(`Opening workflow ${btn.dataset.id}…`, 'info'));
-  });
-
-  tc.querySelectorAll('.nav-upload-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const partNum = e.target.dataset.part;
-      if (partNum) navigateTo('upload-drawing', partNum);
-    });
-  });
-
-  tc.querySelectorAll('.view-stage-btn').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      const entityId = e.target.dataset.id;
-      if (!entityId || entityId === 'undefined') return showToast('Entity ID not found', 'error');
-
-      const prevText = e.target.textContent;
-      e.target.textContent = 'Loading...';
-      e.target.disabled = true;
-
-      try {
-        const res = await authFetch('/api/Parts/' + entityId + '/current-approval-stage');
-        if (res.ok) {
-          const data = await res.json();
-          const itemType = e.target.dataset.type;
-          const resolvedType = data.approvalType || itemType;
-          const isApprovable = resolvedType === 'PartNumber' || resolvedType?.toLowerCase() === 'drawing';
-
-          const overlay = showModal('Current Approval Stage',
-            `<div style="font-family:var(--font-mono); font-size:14px; line-height: 1.6; padding: 10px;">
-               <div style="margin-bottom: 12px;"><strong>Approval Type:</strong> ${resolvedType || 'N/A'}</div>
-               <div style="margin-bottom: 12px;"><strong>Current Stage:</strong> <span class="badge" style="background:#F59E0B;color:#fff;">${data.currentApprovalStage || 'N/A'}</span></div>
-               <div style="margin-bottom: 12px;"><strong>Assigned To:</strong> ${data.name || 'N/A'}</div>
-               <div><strong>Role:</strong> ${data.role || 'N/A'}</div>
-               ${isApprovable ? `
-                 <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border-light);" />
-                 <div class="form-group" style="margin-bottom: 12px;">
-                   <label class="form-label">Comments</label>
-                   <textarea class="form-input" id="stage-comments" rows="2" placeholder="Enter approval/rejection comments..."></textarea>
-                 </div>
-                 <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
-                   <input type="checkbox" id="stage-revert-designer" />
-                   <label for="stage-revert-designer" style="font-size: 13px;">Revert to Designer </label>
-                 </div>
-                 ${(data.role || '').toLowerCase().replace(/\s/g, '') === 'coehead' ? `
+                 ${currentUserRole === 'coehead' ? `
                  <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
                    <input type="checkbox" id="stage-revert-pm-checkbox" onchange="document.getElementById('pm-dropdown-wrapper').style.display = this.checked ? 'block' : 'none'; if(!this.checked) document.getElementById('stage-pm-dropdown').value='';" />
                    <label for="stage-revert-pm-checkbox" style="font-size: 13px;">Revert through PM</label>
@@ -664,7 +496,7 @@ async function renderInProgress(tc) {
                      <option value="">Select a PM...</option>
                    </select>
                  </div>` : ''}
-                 ${(data.role || '').toLowerCase().replace(/\s/g, '') === 'projectmanager' ? `
+                 ${currentUserRole === 'projectmanager' ? `
                  <div class="form-group" style="margin-top: 12px;">
                    <label class="form-label" style="font-size: 13px;">Proto Study User</label>
                    <select class="form-select" id="stage-proto-study-select">
@@ -680,9 +512,12 @@ async function renderInProgress(tc) {
                ` : ''}
              </div>`,
             `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Close</button>
-             ${isApprovable ? `
+             ${(isApprovable && !isDesignerRole) ? `
                <button class="btn btn-danger" id="reject-stage-btn">Reject</button>
                <button class="btn btn-primary" id="approve-stage-btn">Approve</button>
+             ` : ''}
+             ${isDesignerRejected ? `
+               <button class="btn btn-primary" id="resubmit-stage-btn">Resubmit</button>
              ` : ''}`
           );
 
@@ -823,6 +658,374 @@ async function renderInProgress(tc) {
                 showToast('Failed to reject', 'error');
                 btn.disabled = false;
                 btn.textContent = 'Reject';
+              }
+            });
+
+            overlay.querySelector('#resubmit-stage-btn')?.addEventListener('click', async (btnEv) => {
+              const comments = overlay.querySelector('#stage-comments')?.value?.trim() || '';
+              
+              const btn = btnEv.currentTarget;
+              btn.disabled = true;
+              btn.textContent = 'Resubmitting...';
+              try {
+                const payload = {
+                  comments,
+                  revertToDesigner: true,
+                  revertThroughPM: true,
+                  selectedPMId: 0,
+                  protoStudyUserId: 0,
+                  protoApprovalUserId: 0
+                };
+                
+                const res = await authFetch('/api/Parts/' + entityId + '/resubmit-part-number', {
+                  method: 'POST',
+                  body: JSON.stringify(payload),
+                  headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (res.ok) {
+                  showToast('Resubmitted successfully', 'success');
+                  overlay.remove();
+                  const activeTab = document.querySelector('#wf-tabs .tab-btn.active')?.dataset.tab;
+                  if (activeTab) renderWFTab(document.querySelector('#wf-tab-content'), activeTab);
+                } else {
+                  showToast('Failed to resubmit', 'error');
+                  btn.disabled = false;
+                  btn.textContent = 'Resubmit';
+                }
+              } catch (e) {
+                showToast('Failed to resubmit', 'error');
+                btn.disabled = false;
+                btn.textContent = 'Resubmit';
+              }
+            });
+          }
+        } else {
+          showToast('Failed to fetch approval stage', 'error');
+        }
+      } catch (err) {
+        showToast('Error fetching approval stage', 'error');
+      } finally {
+        e.target.textContent = prevText;
+        e.target.disabled = false;
+      }
+    });
+  });
+
+}
+
+async function renderInProgress(tc) {
+  tc.innerHTML = '<div style="padding: 20px; text-align: center;">Loading Pending workflows...</div>';
+  let tasks = [];
+  try {
+    const apiData = await fetchPendingApprovals();
+    const fetchedTasks = Array.isArray(apiData) ? apiData : (apiData?.items || []);
+
+    tasks = fetchedTasks.map(t => {
+      return {
+        id: t.approvalId ? `APP-${t.approvalId}` : `WF-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+        subject: `Review ${t.approvalType || 'Approval'}: ${t.partName || ''} — ${t.stage || ''}`,
+        type: t.approvalType || 'Workflow',
+        step: t.stage || 'Pending',
+        assignee: 'Me',
+        started: t.createdAt ? new Date(t.createdAt).toLocaleDateString() : 'N/A',
+        ref: t.partNumber || '-',
+        entityId: t.partId
+      };
+    });
+  } catch (err) {
+    console.error('Failed to load Pending workflows', err);
+  }
+
+  tc.innerHTML = `
+    <div class="card">
+      <div class="card-header"><div class="card-title">Pending Workflows</div></div>
+      <div class="card-body no-pad">
+        <table class="data-table">
+          <thead><tr><th>Workflow ID</th><th>Subject</th><th>Type</th><th>Current Step</th><th>Assignee</th><th>Started</th><th>Part Ref</th><th>Action</th></tr></thead>
+          <tbody>
+            ${tasks.length ? tasks.map(t => `
+              <tr>
+                <td style="font-family:var(--font-mono);font-weight:600;">${t.id}</td>
+                <td style="max-width:280px;white-space:normal;line-height:1.4;">${t.subject}</td>
+                <td><span class="tag">${t.type}</span></td>
+                <td><span class="badge" style="background:#F59E0B; color:#fff; border:none; padding:4px 8px; border-radius:4px;">${t.step}</span></td>
+                <td>${t.assignee}</td>
+                <td>${t.started}</td>
+                <td style="font-family:var(--font-mono); font-size:0.857rem;">${t.ref}</td>
+                <td>
+                  <button class="btn btn-outline btn-xs view-wf-btn" data-id="${t.id}" style="margin-right:4px;">View</button>
+                  ${(t.type === 'UploadDrawing' || t.type === 'ReUploadDrawing') ?
+      `<button class="btn btn-primary btn-xs nav-upload-btn" data-part="${t.ref !== '-' ? t.ref : t.entityId}">Upload Drawing</button>` :
+      ((t.type === 'Part' || t.type === 'PartNumber' || t.type?.toLowerCase() === 'drawing') ? `<button class="btn btn-outline btn-xs view-stage-btn" data-id="${t.entityId}" data-type="${t.type}">View Stage</button>` : '')}
+                </td>
+              </tr>
+            `).join('') : '<tr><td colspan="8" class="text-center text-secondary py-4" style="text-align: center;">No Pending workflows</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  tc.querySelectorAll('.view-wf-btn').forEach(btn => {
+    btn.addEventListener('click', () => showToast(`Opening workflow ${btn.dataset.id}…`, 'info'));
+  });
+
+  tc.querySelectorAll('.nav-upload-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const partNum = e.target.dataset.part;
+      if (partNum) navigateTo('upload-drawing', partNum);
+    });
+  });
+
+  tc.querySelectorAll('.view-stage-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const entityId = e.target.dataset.id;
+      if (!entityId || entityId === 'undefined') return showToast('Entity ID not found', 'error');
+
+      const prevText = e.target.textContent;
+      e.target.textContent = 'Loading...';
+      e.target.disabled = true;
+
+      try {
+        const res = await authFetch('/api/Parts/' + entityId + '/current-approval-stage');
+        if (res.ok) {
+          const data = await res.json();
+          const itemType = e.target.dataset.type;
+          const resolvedType = data.approvalType || itemType;
+          const isApprovable = resolvedType === 'PartNumber' || resolvedType?.toLowerCase() === 'drawing';
+          
+          const currentUserRole = (getCurrentUserRole() || '').toLowerCase().replace(/\s/g, '');
+          const isDesignerRole = currentUserRole === 'designer';
+          const isDesignerRejected = isDesignerRole && ((data.status || '').toLowerCase() === 'rejected' || (data.result || '').toLowerCase() === 'rejected' || (data.currentApprovalStage || '').toLowerCase().includes('reject'));
+
+          const overlay = showModal('Current Approval Stage',
+            `<div style="font-family:var(--font-mono); font-size:14px; line-height: 1.6; padding: 10px;">
+               <div style="margin-bottom: 12px;"><strong>Approval Type:</strong> ${resolvedType || 'N/A'}</div>
+               <div style="margin-bottom: 12px;"><strong>Current Stage:</strong> <span class="badge" style="background:#F59E0B;color:#fff;">${data.currentApprovalStage || 'N/A'}</span></div>
+               <div style="margin-bottom: 12px;"><strong>Assigned To:</strong> ${data.name || 'N/A'}</div>
+               <div><strong>Role:</strong> ${data.role || 'N/A'}</div>
+               ${(isApprovable && !isDesignerRole) ? `
+                 <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border-light);" />
+                 <div class="form-group" style="margin-bottom: 12px;">
+                   <label class="form-label">Comments</label>
+                   <textarea class="form-input" id="stage-comments" rows="2" placeholder="Enter approval/rejection comments..."></textarea>
+                 </div>
+                 <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                   <input type="checkbox" id="stage-revert-designer" />
+                   <label for="stage-revert-designer" style="font-size: 13px;">Revert to Designer </label>
+                 </div>
+                 ${currentUserRole === 'coehead' ? `
+                 <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+                   <input type="checkbox" id="stage-revert-pm-checkbox" onchange="document.getElementById('pm-dropdown-wrapper').style.display = this.checked ? 'block' : 'none'; if(!this.checked) document.getElementById('stage-pm-dropdown').value='';" />
+                   <label for="stage-revert-pm-checkbox" style="font-size: 13px;">Revert through PM</label>
+                 </div>
+                 <div id="pm-dropdown-wrapper" style="display:none; margin-top: 8px;" class="form-group">
+                   <label class="form-label" style="font-size: 13px;">Select Project Manager</label>
+                   <select class="form-select" id="stage-pm-dropdown">
+                     <option value="">Select a PM...</option>
+                   </select>
+                 </div>` : ''}
+                 ${currentUserRole === 'projectmanager' ? `
+                 <div class="form-group" style="margin-top: 12px;">
+                   <label class="form-label" style="font-size: 13px;">Proto Study User</label>
+                   <select class="form-select" id="stage-proto-study-select">
+                     <option value="0">Select User...</option>
+                   </select>
+                 </div>
+                 <div class="form-group" style="margin-top: 12px;">
+                   <label class="form-label" style="font-size: 13px;">Proto Approval User</label>
+                   <select class="form-select" id="stage-proto-approval-select">
+                     <option value="0">Select User...</option>
+                   </select>
+                 </div>` : ''}
+               ` : ''}
+             </div>`,
+            `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Close</button>
+             ${(isApprovable && !isDesignerRole) ? `
+               <button class="btn btn-danger" id="reject-stage-btn">Reject</button>
+               <button class="btn btn-primary" id="approve-stage-btn">Approve</button>
+             ` : ''}
+             ${isDesignerRejected ? `
+               <button class="btn btn-primary" id="resubmit-stage-btn">Resubmit</button>
+             ` : ''}`
+          );
+
+          if (isApprovable) {
+            const revertPmCheckbox = document.getElementById('stage-revert-pm-checkbox');
+            const pmSelect = document.getElementById('stage-pm-dropdown');
+
+            if (revertPmCheckbox && pmSelect) {
+              revertPmCheckbox.addEventListener('change', async (e) => {
+                if (e.target.checked) {
+                  if (pmSelect.options.length <= 1) {
+                    try {
+                      pmSelect.innerHTML = '<option value="">Loading...</option>';
+                      const res = await authFetch('/api/Parts/project-managers');
+                      if (res.ok) {
+                        const pms = await res.json();
+                        pmSelect.innerHTML = '<option value="">Select a PM...</option>' + 
+                          pms.map(pm => `<option value="${pm.id}">${pm.fullName}</option>`).join('');
+                      } else {
+                        pmSelect.innerHTML = '<option value="">Failed to load PMs</option>';
+                      }
+                    } catch (err) {
+                      pmSelect.innerHTML = '<option value="">Error loading PMs</option>';
+                    }
+                  }
+                } else {
+                  pmSelect.value = '';
+                }
+              });
+            }
+
+            const protoStudySelect = document.getElementById('stage-proto-study-select');
+            const protoApprovalSelect = document.getElementById('stage-proto-approval-select');
+            if (protoStudySelect && protoApprovalSelect) {
+               try {
+                 const res = await authFetch('/api/Members');
+                 if (res.ok) {
+                   const membersData = await res.json();
+                   const membersList = Array.isArray(membersData) ? membersData : (Object.keys(membersData).filter(k => Array.isArray(membersData[k])).length > 0 ? membersData[Object.keys(membersData).filter(k => Array.isArray(membersData[k]))[0]] : [membersData]);
+                   const optionsHtml = '<option value="0">Select User...</option>' + membersList.map(m => `<option value="${m.id || m.userId || 0}">${m.fullName || m.name || 'Unknown'}</option>`).join('');
+                   protoStudySelect.innerHTML = optionsHtml;
+                   protoApprovalSelect.innerHTML = optionsHtml;
+                 }
+               } catch (err) {
+                 console.error('Failed to load members for proto users', err);
+               }
+            }
+
+            overlay.querySelector('#approve-stage-btn')?.addEventListener('click', async (btnEv) => {
+              const comments = overlay.querySelector('#stage-comments')?.value?.trim() || '';
+              
+              const cb = document.getElementById('stage-revert-pm-checkbox');
+              const revertThroughPM = cb ? cb.checked : false;
+              
+              const sel = document.getElementById('stage-pm-dropdown');
+              const selectedPMId = sel && sel.value ? parseInt(sel.value, 10) : 0;
+              
+              if (revertThroughPM && (!selectedPMId || isNaN(selectedPMId))) {
+                 showToast('Please select a Project Manager before proceeding', 'warning');
+                 return;
+              }
+
+              const pStudy = document.getElementById('stage-proto-study-select');
+              const pApprove = document.getElementById('stage-proto-approval-select');
+              const protoStudyUserId = pStudy && pStudy.value ? parseInt(pStudy.value, 10) : 0;
+              const protoApprovalUserId = pApprove && pApprove.value ? parseInt(pApprove.value, 10) : 0;
+
+              const btn = btnEv.currentTarget;
+              btn.disabled = true;
+              btn.textContent = 'Approving...';
+              try {
+                const payload = {
+                  comments,
+                  revertToDesigner: false,
+                  revertThroughPM,
+                  selectedPMId: revertThroughPM ? (selectedPMId || 0) : 0,
+                  protoStudyUserId,
+                  protoApprovalUserId
+                };
+                if (resolvedType === 'PartNumber') {
+                  await approvePartNumber(entityId, payload);
+                } else {
+                  await approveDrawing(entityId, payload);
+                }
+                showToast('Approved successfully', 'success');
+                overlay.remove();
+                const activeTab = document.querySelector('#wf-tabs .tab-btn.active')?.dataset.tab;
+                if (activeTab) renderWFTab(document.querySelector('#wf-tab-content'), activeTab);
+              } catch (e) {
+                showToast('Failed to approve', 'error');
+                btn.disabled = false;
+                btn.textContent = 'Approve';
+              }
+            });
+
+            overlay.querySelector('#reject-stage-btn')?.addEventListener('click', async (btnEv) => {
+              const comments = overlay.querySelector('#stage-comments')?.value?.trim() || '';
+              const revertToDesigner = overlay.querySelector('#stage-revert-designer')?.checked || false;
+              
+              const cb = document.getElementById('stage-revert-pm-checkbox');
+              const revertThroughPM = cb ? cb.checked : false;
+              
+              const sel = document.getElementById('stage-pm-dropdown');
+              const selectedPMId = sel && sel.value ? parseInt(sel.value, 10) : 0;
+              
+              if (revertThroughPM && (!selectedPMId || isNaN(selectedPMId))) {
+                 showToast('Please select a Project Manager before proceeding', 'warning');
+                 return;
+              }
+
+              const pStudy = document.getElementById('stage-proto-study-select');
+              const pApprove = document.getElementById('stage-proto-approval-select');
+              const protoStudyUserId = pStudy && pStudy.value ? parseInt(pStudy.value, 10) : 0;
+              const protoApprovalUserId = pApprove && pApprove.value ? parseInt(pApprove.value, 10) : 0;
+
+              const btn = btnEv.currentTarget;
+              btn.disabled = true;
+              btn.textContent = 'Rejecting...';
+              try {
+                const payload = {
+                  comments,
+                  revertToDesigner,
+                  revertThroughPM,
+                  selectedPMId: revertThroughPM ? (selectedPMId || 0) : 0,
+                  protoStudyUserId,
+                  protoApprovalUserId
+                };
+                if (resolvedType === 'PartNumber') {
+                  await rejectPartNumber(entityId, payload);
+                } else {
+                  await rejectDrawing(entityId, payload);
+                }
+                showToast('Rejected successfully', 'success');
+                overlay.remove();
+                const activeTab = document.querySelector('#wf-tabs .tab-btn.active')?.dataset.tab;
+                if (activeTab) renderWFTab(document.querySelector('#wf-tab-content'), activeTab);
+              } catch (e) {
+                showToast('Failed to reject', 'error');
+                btn.disabled = false;
+                btn.textContent = 'Reject';
+              }
+            });
+
+            overlay.querySelector('#resubmit-stage-btn')?.addEventListener('click', async (btnEv) => {
+              const comments = overlay.querySelector('#stage-comments')?.value?.trim() || '';
+              
+              const btn = btnEv.currentTarget;
+              btn.disabled = true;
+              btn.textContent = 'Resubmitting...';
+              try {
+                const payload = {
+                  comments,
+                  revertToDesigner: true,
+                  revertThroughPM: true,
+                  selectedPMId: 0,
+                  protoStudyUserId: 0,
+                  protoApprovalUserId: 0
+                };
+                
+                const res = await authFetch('/api/Parts/' + entityId + '/resubmit-part-number', {
+                  method: 'POST',
+                  body: JSON.stringify(payload),
+                  headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (res.ok) {
+                  showToast('Resubmitted successfully', 'success');
+                  overlay.remove();
+                  const activeTab = document.querySelector('#wf-tabs .tab-btn.active')?.dataset.tab;
+                  if (activeTab) renderWFTab(document.querySelector('#wf-tab-content'), activeTab);
+                } else {
+                  showToast('Failed to resubmit', 'error');
+                  btn.disabled = false;
+                  btn.textContent = 'Resubmit';
+                }
+              } catch (e) {
+                showToast('Failed to resubmit', 'error');
+                btn.disabled = false;
+                btn.textContent = 'Resubmit';
               }
             });
           }
