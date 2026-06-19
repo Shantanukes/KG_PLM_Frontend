@@ -229,9 +229,39 @@ export function renderBOM(container) {
 
   renderTabContent(container.querySelector('#tab-content'), 'bom-nav');
 
-  container.querySelector('#btn-export-bom')?.addEventListener('click', () => {
-    showToast('Preparing BOM export (Excel + PDF)…', 'info');
-    setTimeout(() => showToast('BOM exported successfully!', 'success'), 2000);
+  container.querySelector('#btn-export-bom')?.addEventListener('click', async () => {
+    const part = PARTS[selectedPartId];
+    if (!part || !part.backendId) {
+      showToast('Please select a BOM from the Navigator to export.', 'warning');
+      return;
+    }
+    const bomId = part.backendId;
+
+    try {
+      showToast(`Preparing Excel export for BOM ${part.pn}…`, 'info');
+      const response = await authFetch(`/api/BOM/${bomId}/export-excel`, { method: 'GET' });
+
+      if (!response.ok) {
+        throw new Error(`Export failed with status: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = downloadUrl;
+      // You can configure the file name structure here
+      a.download = `BOM_${part.pn}_Export.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(downloadUrl);
+      a.remove();
+
+      showToast('BOM exported successfully!', 'success');
+    } catch (err) {
+      console.error('[BOM EXPORT]', err);
+      showToast('Error exporting BOM: ' + (err.message || 'Unknown error'), 'error');
+    }
   });
 
   container.querySelector('#btn-compare-bom')?.addEventListener('click', () => {
@@ -263,7 +293,7 @@ async function renderPartLinking(tc) {
         showToast('Part details not found.', 'error');
         return;
       }
-      
+
       const tableHtml = `
         <div style="overflow-x: auto; margin-top: 8px;">
           <table class="data-table" style="width: 100%; text-align: left;">
@@ -367,8 +397,8 @@ async function renderPartLinking(tc) {
   `;
 
   let currentBomId = null;
-  let linkedPartIds = new Set();
-  
+  let officiallyLinkedPartIds = new Set();
+
   const linkedTbody = tc.querySelector('#linked-parts-results');
   const searchTbody = tc.querySelector('#search-parts-results');
   const paginationDiv = tc.querySelector('#search-parts-pagination');
@@ -380,37 +410,49 @@ async function renderPartLinking(tc) {
       showToast('Please enter a BOM ID', 'error');
       return;
     }
-    
+
     currentBomId = parseInt(bomIdInput, 10);
     linkedTbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px">Loading linked parts...</td></tr>';
 
     try {
       let linkedItems = [];
+      officiallyLinkedPartIds.clear();
+
       try {
         const linkedParts = await getBomParts(currentBomId);
-        linkedItems = Array.isArray(linkedParts) ? linkedParts : (linkedParts?.items || [linkedParts]);
+        const partsList = Array.isArray(linkedParts) ? linkedParts : (linkedParts?.items || [linkedParts]);
+        linkedItems = partsList.filter(Boolean);
+        // Track the isLinked state from API
+        linkedItems.forEach(p => {
+          if (p.isLinked) officiallyLinkedPartIds.add(p.id || p.partId);
+        });
       } catch (err) {
-         console.warn("No linked parts found or error:", err);
+        console.warn("No linked parts found or error:", err);
       }
-      
-      const items = linkedItems.filter(Boolean);
-      linkedPartIds = new Set(items.map(lp => lp.id || lp.partId));
-      
+
+      const items = linkedItems;
+
       if (items.length === 0) {
         linkedTbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px">No parts linked to this BOM yet.</td></tr>';
       } else {
-        linkedTbody.innerHTML = items.map(p => `
-          <tr data-id="${p.id || p.partId}">
+        linkedTbody.innerHTML = items.map(p => {
+          const partId = p.id || p.partId;
+          const isLinked = officiallyLinkedPartIds.has(partId);
+          return `
+          <tr data-id="${partId}">
             <td class="part-number">${p.partNumber || '-'}</td>
             <td>${p.name || '-'}</td>
             <td style="text-align: center;">
-              <button class="btn btn-outline btn-sm btn-info-part" data-part-id="${p.id || p.partId}" style="margin-right: 4px;" title="Info">
+              <button class="btn btn-outline btn-sm btn-info-part" data-part-id="${partId}" style="margin-right: 4px;" title="Info">
                 <span class="material-icons-outlined" style="font-size:16px; pointer-events:none;">info</span>
               </button>
-              <button class="btn btn-outline btn-sm btn-unlink-part" data-part-id="${p.id || p.partId}" style="color:var(--danger); border-color:var(--danger)">Unlink</button>
+              ${isLinked
+                ? `<button class="btn btn-outline btn-sm btn-unlink-part action-btn" data-part-id="${partId}" style="color:var(--danger); border-color:var(--danger)">Unlink</button>`
+                : `<button class="btn btn-primary btn-sm btn-link-part action-btn" data-part-id="${partId}">Link</button>`
+              }
             </td>
           </tr>
-        `).join('');
+        `}).join('');
 
         // Attach info listeners
         linkedTbody.querySelectorAll('.btn-info-part').forEach(btn => {
@@ -420,30 +462,53 @@ async function renderPartLinking(tc) {
           });
         });
 
-        // Attach unlink listeners
-        linkedTbody.querySelectorAll('.btn-unlink-part').forEach(btn => {
-          btn.addEventListener('click', async (e) => {
-            const partId = parseInt(e.target.dataset.partId, 10);
-            e.target.disabled = true;
+        // We delegate link/unlink events because we have both buttons now
+        linkedTbody.addEventListener('click', async (e) => {
+          const btn = e.target.closest('.action-btn');
+          if (!btn || !currentBomId) return;
+
+          const partId = parseInt(btn.dataset.partId, 10);
+          btn.disabled = true;
+
+          if (btn.classList.contains('btn-unlink-part')) {
             try {
               await unlinkPartFromBOM(currentBomId, partId);
+              officiallyLinkedPartIds.delete(partId);
+              
+              // Swap to Link
+              btn.outerHTML = `<button class="btn btn-primary btn-sm btn-link-part action-btn" data-part-id="${partId}">Link</button>`;
+              
               showToast('Part unlinked successfully', 'success');
-              tc.querySelector('#btn-load-bom').click(); // refresh list
               if (searchTbody.querySelector(`[data-part-id="${partId}"]`)) {
-                // If it's in search results, refresh search results to show "Link" again
-                tc.querySelector('#btn-search-parts').click();
+                displaySearchResults();
               }
             } catch (err) {
               showToast(err.message || 'Failed to unlink part', 'error');
-              e.target.disabled = false;
+              btn.disabled = false;
             }
-          });
+          } else if (btn.classList.contains('btn-link-part')) {
+            try {
+              await linkPartToBOM(currentBomId, partId);
+              officiallyLinkedPartIds.add(partId);
+              
+              // Swap to Unlink
+              btn.outerHTML = `<button class="btn btn-outline btn-sm btn-unlink-part action-btn" data-part-id="${partId}" style="color:var(--danger); border-color:var(--danger)">Unlink</button>`;
+              
+              showToast('Part linked successfully', 'success');
+              if (searchTbody.querySelector(`[data-part-id="${partId}"]`)) {
+                displaySearchResults();
+              }
+            } catch (err) {
+              showToast(err.message || 'Failed to link part', 'error');
+              btn.disabled = false;
+            }
+          }
         });
       }
-      
+
       // If search results are already showing, refresh them so the "Link" buttons update state
       if (allSearchParts.length > 0) {
-         displaySearchResults();
+        displaySearchResults();
       }
 
     } catch (err) {
@@ -474,7 +539,7 @@ async function renderPartLinking(tc) {
     const paginatedItems = allSearchParts.slice(startIndex, endIndex);
 
     searchTbody.innerHTML = paginatedItems.map(p => {
-      const isLinked = linkedPartIds.has(p.id);
+      const isLinked = officiallyLinkedPartIds.has(p.id);
       return `
       <tr>
         <td class="part-number">${p.partNumber || '-'}</td>
@@ -483,10 +548,10 @@ async function renderPartLinking(tc) {
           <button class="btn btn-outline btn-sm btn-info-part" data-part-id="${p.id}" style="margin-right: 4px;" title="Info">
             <span class="material-icons-outlined" style="font-size:16px; pointer-events:none;">info</span>
           </button>
-          ${isLinked 
-            ? `<button class="btn btn-outline btn-sm btn-unlink-part" data-part-id="${p.id}" style="color:var(--danger); border-color:var(--danger)">Unlink</button>` 
-            : `<button class="btn btn-primary btn-sm btn-link-part" data-part-id="${p.id}">Link</button>`
-          }
+          ${isLinked
+          ? `<button class="btn btn-outline btn-sm btn-unlink-part" data-part-id="${p.id}" style="color:var(--danger); border-color:var(--danger)">Unlink</button>`
+          : `<button class="btn btn-primary btn-sm btn-link-part" data-part-id="${p.id}">Link</button>`
+        }
         </td>
       </tr>
     `}).join('');
@@ -499,41 +564,46 @@ async function renderPartLinking(tc) {
       });
     });
 
-    // Attach link listeners
-    searchTbody.querySelectorAll('.btn-link-part').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        if (!currentBomId) {
-          showToast('Please load a BOM first before linking parts.', 'error');
-          return;
-        }
-        const partId = parseInt(e.target.dataset.partId, 10);
-        e.target.disabled = true;
+    // Use event delegation for link/unlink in search results
+    searchTbody.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.btn-link-part, .btn-unlink-part');
+      if (!btn || !currentBomId) {
+        if (btn && !currentBomId) showToast('Please load a BOM first before linking parts.', 'error');
+        return;
+      }
+
+      const partId = parseInt(btn.dataset.partId, 10);
+      btn.disabled = true;
+
+      if (btn.classList.contains('btn-link-part')) {
         try {
           await linkPartToBOM(currentBomId, partId);
+          officiallyLinkedPartIds.add(partId);
           showToast('Part linked successfully', 'success');
-          tc.querySelector('#btn-load-bom').click(); // refresh linked list
+          
+          // Re-render search list to update button
+          displaySearchResults();
+          // Also optionally reload the top list to reflect the new addition
+          tc.querySelector('#btn-load-bom').click();
         } catch (err) {
           showToast(err.message || 'Failed to link part', 'error');
-          e.target.disabled = false;
+          btn.disabled = false;
         }
-      });
-    });
-
-    // Attach unlink listeners
-    searchTbody.querySelectorAll('.btn-unlink-part').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        if (!currentBomId) return;
-        const partId = parseInt(e.target.dataset.partId, 10);
-        e.target.disabled = true;
+      } else if (btn.classList.contains('btn-unlink-part')) {
         try {
           await unlinkPartFromBOM(currentBomId, partId);
+          officiallyLinkedPartIds.delete(partId);
           showToast('Part unlinked successfully', 'success');
-          tc.querySelector('#btn-load-bom').click(); // refresh list
+          
+          // Re-render search list to update button
+          displaySearchResults();
+          // Also optionally reload the top list
+          tc.querySelector('#btn-load-bom').click();
         } catch (err) {
           showToast(err.message || 'Failed to unlink part', 'error');
-          e.target.disabled = false;
+          btn.disabled = false;
         }
-      });
+      }
     });
 
     paginationDiv.style.display = 'flex';
@@ -570,12 +640,12 @@ async function renderPartLinking(tc) {
       const defaultParams = { page: 1, pageSize: 10000 };
       const partsData = await getParts(defaultParams);
       let items = Array.isArray(partsData) ? partsData : (partsData?.items || []);
-      
+
       // Client-side filter based on query (similar to parts.js)
       if (query) {
-         items = items.filter(p => (p.name || '').toLowerCase().includes(query) || (p.partNumber || '').toLowerCase().includes(query));
+        items = items.filter(p => (p.name || '').toLowerCase().includes(query) || (p.partNumber || '').toLowerCase().includes(query));
       }
-      
+
       allSearchParts = items;
       displaySearchResults();
     } catch (err) {
