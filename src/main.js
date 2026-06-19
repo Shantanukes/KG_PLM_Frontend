@@ -35,6 +35,14 @@ import { renderHomologation } from './pages/homologation.js';
 import { renderUploadDrawing } from './pages/upload-drawing.js';
 import { seedMockRuntimeData } from './mock-data.js';
 
+// Executive Pages
+import { renderExecutiveAnalytics } from './pages/executive-analytics.js';
+import { renderBOMLifecycle } from './pages/bom-lifecycle.js';
+import { renderPartsLifecycle } from './pages/parts-lifecycle.js';
+import { renderECNLifecycle } from './pages/ecn-lifecycle.js';
+import { renderActivityTimeline } from './pages/activity-timeline.js';
+import { renderTeamPerformance } from './pages/team-performance.js';
+
 // ─── Application State ───
 const SESSION_USER_KEY = 'kg_plm_session_user';
 const AUTH_FLASH_MESSAGE_KEY = 'kg_plm_auth_flash_message';
@@ -60,6 +68,15 @@ const state = {
 };
 
 const PAGE_DEFINITIONS = [
+  // Executive Pages
+  { id: 'executive-analytics', label: 'Executive Analytics', render: renderExecutiveAnalytics },
+  { id: 'bom-lifecycle', label: 'BOM Lifecycle', render: renderBOMLifecycle },
+  { id: 'parts-lifecycle', label: 'Parts Lifecycle', render: renderPartsLifecycle },
+  { id: 'ecn-lifecycle', label: 'ECN Lifecycle', render: renderECNLifecycle },
+  { id: 'activity-timeline', label: 'Activity Timeline', render: renderActivityTimeline },
+  { id: 'team-performance', label: 'Team Performance', render: renderTeamPerformance },
+
+  // Operational Pages
   { id: 'dashboard', label: 'Dashboard', render: renderDashboard },
   { id: 'parts', label: 'Parts', render: renderParts },
   { id: 'bom', label: 'BOM', render: renderBOM },
@@ -87,9 +104,25 @@ export function getCurrentUserRole() {
 }
 
 function getAllowedPages() {
-  const role = getCurrentUserRole().toLowerCase();
+  const rawRole = getCurrentUserRole().toLowerCase();
+  const role = rawRole.replace(/[-\\s]/g, '');
 
-  if (role === 'designer' || role === '6') {
+  const executivePages = [
+    'executive-analytics',
+    'bom-lifecycle',
+    'parts-lifecycle',
+    'ecn-lifecycle',
+    'activity-timeline',
+    'team-performance'
+  ];
+
+  // Founder and Co-Founder ONLY see executive pages. All operational pages are hidden.
+  if (role === 'founder' || rawRole === '11' || role === 'cofounder' || rawRole === '12') {
+    return executivePages;
+  }
+
+  // Designer sees specific operational pages
+  if (role === 'designer' || rawRole === '6') {
     const designerAllowed = [
       'parts', 'bom', 'documents', 'upload-drawing', 'workflows',
       'ticket-raise', 'ticket-history', 'change-mgmt', 'reports',
@@ -98,8 +131,8 @@ function getAllowedPages() {
     return PAGE_DEFINITIONS.map((p) => p.id).filter(id => designerAllowed.includes(id));
   }
 
-  // Default to all pages for other roles
-  return PAGE_DEFINITIONS.map((page) => page.id);
+  // Default to all operational pages for other roles (excluding the executive suite)
+  return PAGE_DEFINITIONS.map((page) => page.id).filter(id => !executivePages.includes(id));
 }
 
 function canAccessPage(page) {
