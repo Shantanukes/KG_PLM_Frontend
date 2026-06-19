@@ -173,22 +173,37 @@ export async function linkBomWithParent(childBomId, parentBOMId) {
 }
 
 export async function linkPartToBOM(bomId, partId) {
+  const numericPartId = Number(partId);
+  if (!bomId || isNaN(numericPartId) || numericPartId <= 0) {
+    throw new Error(`Invalid bomId (${bomId}) or partId (${partId}) for link-part request.`);
+  }
+  // ASP.NET Core System.Text.Json is case-insensitive by default,
+  // so lowercase partId is accepted. Sending a single clean key avoids
+  // duplicate-key parsing errors on stricter deserializers.
+  const body = JSON.stringify({ partId: numericPartId });
+  console.log(`[linkPartToBOM] POST /api/BOM/${bomId}/link-part`, { partId: numericPartId });
+
   let response = await authFetch(`/api/BOM/${bomId}/link-part`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ partId })
+    body,
   });
   if (response.status === 404) {
     response = await authFetch(`/api/bom/${bomId}/link-part`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ partId })
+      body,
     });
   }
   if (!response.ok) {
     let errRaw;
     try { errRaw = await response.json(); } catch { errRaw = null; }
-    throw new Error(errRaw?.message || `Failed to link part to BOM (${response.status})`);
+    console.error(`[linkPartToBOM] ${response.status} error body:`, errRaw);
+    const validationMsg = errRaw?.errors
+      ? Object.values(errRaw.errors).flat().filter(Boolean).join(' ')
+      : '';
+    const msg = validationMsg || errRaw?.message || errRaw?.title || `Failed to link part to BOM (${response.status})`;
+    throw new Error(msg);
   }
   let rawData = null;
   try { rawData = await response.json(); } catch { rawData = null; }
@@ -196,22 +211,34 @@ export async function linkPartToBOM(bomId, partId) {
 }
 
 export async function unlinkPartFromBOM(bomId, partId) {
+  const numericPartId = Number(partId);
+  if (!bomId || isNaN(numericPartId) || numericPartId <= 0) {
+    throw new Error(`Invalid bomId (${bomId}) or partId (${partId}) for unlink-part request.`);
+  }
+  const body = JSON.stringify({ partId: numericPartId });
+  console.log(`[unlinkPartFromBOM] POST /api/BOM/${bomId}/unlink-part`, { partId: numericPartId });
+
   let response = await authFetch(`/api/BOM/${bomId}/unlink-part`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ partId })
+    body,
   });
   if (response.status === 404) {
     response = await authFetch(`/api/bom/${bomId}/unlink-part`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ partId })
+      body,
     });
   }
   if (!response.ok) {
     let errRaw;
     try { errRaw = await response.json(); } catch { errRaw = null; }
-    throw new Error(errRaw?.message || `Failed to unlink part from BOM (${response.status})`);
+    console.error(`[unlinkPartFromBOM] ${response.status} error body:`, errRaw);
+    const validationMsg = errRaw?.errors
+      ? Object.values(errRaw.errors).flat().filter(Boolean).join(' ')
+      : '';
+    const msg = validationMsg || errRaw?.message || errRaw?.title || `Failed to unlink part from BOM (${response.status})`;
+    throw new Error(msg);
   }
   let rawData = null;
   try { rawData = await response.json(); } catch { rawData = null; }

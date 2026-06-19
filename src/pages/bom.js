@@ -422,9 +422,11 @@ async function renderPartLinking(tc) {
         const linkedParts = await getBomParts(currentBomId);
         const partsList = Array.isArray(linkedParts) ? linkedParts : (linkedParts?.items || [linkedParts]);
         linkedItems = partsList.filter(Boolean);
-        // Track the isLinked state from API
+        // All parts returned by getBomParts() are linked to this BOM.
+        // Add every returned part unconditionally so we know they are linked.
         linkedItems.forEach(p => {
-          if (p.isLinked) officiallyLinkedPartIds.add(p.id || p.partId);
+          const id = p.partId ?? p.id;
+          if (id != null) officiallyLinkedPartIds.add(id);
         });
       } catch (err) {
         console.warn("No linked parts found or error:", err);
@@ -436,8 +438,9 @@ async function renderPartLinking(tc) {
         linkedTbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px">No parts linked to this BOM yet.</td></tr>';
       } else {
         linkedTbody.innerHTML = items.map(p => {
-          const partId = p.id || p.partId;
-          const isLinked = officiallyLinkedPartIds.has(partId);
+          const partId = p.partId ?? p.id;
+          // Parts in this list come from getBomParts → they are all linked.
+          const isLinked = true;
           return `
           <tr data-id="${partId}">
             <td class="part-number">${p.partNumber || '-'}</td>
@@ -446,13 +449,10 @@ async function renderPartLinking(tc) {
               <button class="btn btn-outline btn-sm btn-info-part" data-part-id="${partId}" style="margin-right: 4px;" title="Info">
                 <span class="material-icons-outlined" style="font-size:16px; pointer-events:none;">info</span>
               </button>
-              ${isLinked
-                ? `<button class="btn btn-outline btn-sm btn-unlink-part action-btn" data-part-id="${partId}" style="color:var(--danger); border-color:var(--danger)">Unlink</button>`
-                : `<button class="btn btn-primary btn-sm btn-link-part action-btn" data-part-id="${partId}">Link</button>`
-              }
+              <button class="btn btn-outline btn-sm btn-unlink-part action-btn" data-part-id="${partId}" style="color:var(--danger); border-color:var(--danger)">Unlink</button>
             </td>
           </tr>
-        `}).join('');
+        `;}).join('');
 
         // Attach info listeners
         linkedTbody.querySelectorAll('.btn-info-part').forEach(btn => {
@@ -539,18 +539,19 @@ async function renderPartLinking(tc) {
     const paginatedItems = allSearchParts.slice(startIndex, endIndex);
 
     searchTbody.innerHTML = paginatedItems.map(p => {
-      const isLinked = officiallyLinkedPartIds.has(p.id);
+      const partId = p.partId ?? p.id;
+      const isLinked = officiallyLinkedPartIds.has(partId);
       return `
       <tr>
         <td class="part-number">${p.partNumber || '-'}</td>
         <td>${p.name || '-'}</td>
         <td style="text-align: center;">
-          <button class="btn btn-outline btn-sm btn-info-part" data-part-id="${p.id}" style="margin-right: 4px;" title="Info">
+          <button class="btn btn-outline btn-sm btn-info-part" data-part-id="${partId}" style="margin-right: 4px;" title="Info">
             <span class="material-icons-outlined" style="font-size:16px; pointer-events:none;">info</span>
           </button>
           ${isLinked
-          ? `<button class="btn btn-outline btn-sm btn-unlink-part" data-part-id="${p.id}" style="color:var(--danger); border-color:var(--danger)">Unlink</button>`
-          : `<button class="btn btn-primary btn-sm btn-link-part" data-part-id="${p.id}">Link</button>`
+          ? `<button class="btn btn-outline btn-sm btn-unlink-part" data-part-id="${partId}" style="color:var(--danger); border-color:var(--danger)">Unlink</button>`
+          : `<button class="btn btn-primary btn-sm btn-link-part" data-part-id="${partId}">Link</button>`
         }
         </td>
       </tr>
