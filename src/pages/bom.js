@@ -337,17 +337,21 @@ async function renderPartLinking(tc) {
         </div>
         <div class="card">
           <div class="card-body" style="padding:0">
-            <div style="padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 500;">Currently Linked Parts</div>
+            <div style="padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 500; display: flex; justify-content: space-between; align-items: center;">
+              <span>Currently Linked Parts</span>
+              <button class="btn btn-outline btn-sm" id="btn-unlink-selected" style="color:var(--danger); border-color:var(--danger); display:none;">Unlink Selected</button>
+            </div>
             <table class="data-table">
               <thead>
                 <tr>
+                  <th style="width: 40px; text-align: center;"><input type="checkbox" id="chk-all-linked"></th>
                   <th>Part Number</th>
                   <th>Part Name</th>
                   <th style="width: 140px; text-align: center;">Action</th>
                 </tr>
               </thead>
               <tbody id="linked-parts-results">
-                <tr><td colspan="3" style="text-align:center;padding:20px">Please load a BOM first.</td></tr>
+                <tr><td colspan="4" style="text-align:center;padding:20px">Please load a BOM first.</td></tr>
               </tbody>
             </table>
           </div>
@@ -368,17 +372,21 @@ async function renderPartLinking(tc) {
         </div>
         <div class="card">
           <div class="card-body" style="padding:0">
-            <div style="padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 500;">Search Results</div>
+            <div style="padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 500; display: flex; justify-content: space-between; align-items: center;">
+              <span>Search Results</span>
+              <button class="btn btn-primary btn-sm" id="btn-link-selected" style="display:none;">Link Selected</button>
+            </div>
             <table class="data-table">
               <thead>
                 <tr>
+                  <th style="width: 40px; text-align: center;"><input type="checkbox" id="chk-all-search"></th>
                   <th>Part Number</th>
                   <th>Part Name</th>
                   <th style="width: 140px; text-align: center;">Action</th>
                 </tr>
               </thead>
               <tbody id="search-parts-results">
-                <tr><td colspan="3" style="text-align:center;padding:20px">Search for parts to link.</td></tr>
+                <tr><td colspan="4" style="text-align:center;padding:20px">Search for parts to link.</td></tr>
               </tbody>
             </table>
             <div class="pagination" id="search-parts-pagination" style="display:none; justify-content:space-between; align-items:center; padding:12px 16px; border-top:1px solid var(--border)">
@@ -435,24 +443,24 @@ async function renderPartLinking(tc) {
       const items = linkedItems;
 
       if (items.length === 0) {
-        linkedTbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px">No parts linked to this BOM yet.</td></tr>';
+        linkedTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px">No parts linked to this BOM yet.</td></tr>';
       } else {
         linkedTbody.innerHTML = items.map(p => {
           const partId = p.partId ?? p.id;
           // Parts in this list come from getBomParts → they are all linked.
           const isLinked = true;
-          return `
-          <tr data-id="${partId}">
-            <td class="part-number">${p.partNumber || '-'}</td>
-            <td>${p.name || '-'}</td>
-            <td style="text-align: center;">
-              <button class="btn btn-outline btn-sm btn-info-part" data-part-id="${partId}" style="margin-right: 4px;" title="Info">
-                <span class="material-icons-outlined" style="font-size:16px; pointer-events:none;">info</span>
-              </button>
-              <button class="btn btn-outline btn-sm btn-unlink-part action-btn" data-part-id="${partId}" style="color:var(--danger); border-color:var(--danger)">Unlink</button>
-            </td>
-          </tr>
-        `;}).join('');
+          return '<tr data-id="' + partId + '">' +
+            '<td style="text-align: center;"><input type="checkbox" class="chk-linked-part" data-part-id="' + partId + '"></td>' +
+            '<td class="part-number">' + (p.partNumber || '-') + '</td>' +
+            '<td>' + (p.name || '-') + '</td>' +
+            '<td style="text-align: center;">' +
+              '<button class="btn btn-outline btn-sm btn-info-part" data-part-id="' + partId + '" style="margin-right: 4px;" title="Info">' +
+                '<span class="material-icons-outlined" style="font-size:16px; pointer-events:none;">info</span>' +
+              '</button>' +
+              '<button class="btn btn-outline btn-sm btn-unlink-part action-btn" data-part-id="' + partId + '" style="color:var(--danger); border-color:var(--danger)">Unlink</button>' +
+            '</td>' +
+          '</tr>';
+        }).join('');
 
         // Attach info listeners
         linkedTbody.querySelectorAll('.btn-info-part').forEach(btn => {
@@ -474,10 +482,10 @@ async function renderPartLinking(tc) {
             try {
               await unlinkPartFromBOM(currentBomId, partId);
               officiallyLinkedPartIds.delete(partId);
-              
+
               // Swap to Link
               btn.outerHTML = `<button class="btn btn-primary btn-sm btn-link-part action-btn" data-part-id="${partId}">Link</button>`;
-              
+
               showToast('Part unlinked successfully', 'success');
               if (searchTbody.querySelector(`[data-part-id="${partId}"]`)) {
                 displaySearchResults();
@@ -490,10 +498,10 @@ async function renderPartLinking(tc) {
             try {
               await linkPartToBOM(currentBomId, partId);
               officiallyLinkedPartIds.add(partId);
-              
+
               // Swap to Unlink
               btn.outerHTML = `<button class="btn btn-outline btn-sm btn-unlink-part action-btn" data-part-id="${partId}" style="color:var(--danger); border-color:var(--danger)">Unlink</button>`;
-              
+
               showToast('Part linked successfully', 'success');
               if (searchTbody.querySelector(`[data-part-id="${partId}"]`)) {
                 displaySearchResults();
@@ -518,6 +526,58 @@ async function renderPartLinking(tc) {
     }
   });
 
+  // Setup bulk unlinking
+  const chkAllLinked = tc.querySelector('#chk-all-linked');
+  const btnUnlinkSelected = tc.querySelector('#btn-unlink-selected');
+  
+  chkAllLinked?.addEventListener('change', (e) => {
+    const isChecked = e.target.checked;
+    const checkboxes = linkedTbody.querySelectorAll('.chk-linked-part');
+    checkboxes.forEach(chk => chk.checked = isChecked);
+    btnUnlinkSelected.style.display = Array.from(checkboxes).some(c => c.checked) ? 'block' : 'none';
+  });
+
+  linkedTbody.addEventListener('change', (e) => {
+    if (e.target.classList.contains('chk-linked-part')) {
+      const checkboxes = linkedTbody.querySelectorAll('.chk-linked-part');
+      const anyChecked = Array.from(checkboxes).some(c => c.checked);
+      const allChecked = Array.from(checkboxes).every(c => c.checked);
+      chkAllLinked.checked = allChecked && checkboxes.length > 0;
+      btnUnlinkSelected.style.display = anyChecked ? 'block' : 'none';
+    }
+  });
+
+  btnUnlinkSelected?.addEventListener('click', async () => {
+    const checked = Array.from(linkedTbody.querySelectorAll('.chk-linked-part:checked'));
+    if (!currentBomId || checked.length === 0) return;
+    
+    btnUnlinkSelected.disabled = true;
+    btnUnlinkSelected.textContent = 'Unlinking...';
+    let successCount = 0;
+    
+    for (const chk of checked) {
+      const partId = parseInt(chk.dataset.partId, 10);
+      try {
+        await unlinkPartFromBOM(currentBomId, partId);
+        officiallyLinkedPartIds.delete(partId);
+        successCount++;
+      } catch (err) {
+        showToast('Failed to unlink part ' + partId + ': ' + err.message, 'error');
+      }
+    }
+    
+    if (successCount > 0) {
+      showToast('Successfully unlinked ' + successCount + ' part(s)', 'success');
+      tc.querySelector('#btn-load-bom').click(); // Reload BOM list
+      if (allSearchParts.length > 0) displaySearchResults(); // Update search UI
+    }
+    
+    btnUnlinkSelected.disabled = false;
+    btnUnlinkSelected.textContent = 'Unlink Selected';
+    btnUnlinkSelected.style.display = 'none';
+    chkAllLinked.checked = false;
+  });
+
   // Search Parts
   let allSearchParts = [];
   let currentPage = 1;
@@ -525,7 +585,7 @@ async function renderPartLinking(tc) {
 
   const displaySearchResults = () => {
     if (!allSearchParts || allSearchParts.length === 0) {
-      searchTbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px">No parts found.</td></tr>';
+      searchTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px">No parts found.</td></tr>';
       paginationDiv.style.display = 'none';
       return;
     }
@@ -541,21 +601,23 @@ async function renderPartLinking(tc) {
     searchTbody.innerHTML = paginatedItems.map(p => {
       const partId = p.partId ?? p.id;
       const isLinked = officiallyLinkedPartIds.has(partId);
-      return `
-      <tr>
-        <td class="part-number">${p.partNumber || '-'}</td>
-        <td>${p.name || '-'}</td>
-        <td style="text-align: center;">
-          <button class="btn btn-outline btn-sm btn-info-part" data-part-id="${partId}" style="margin-right: 4px;" title="Info">
-            <span class="material-icons-outlined" style="font-size:16px; pointer-events:none;">info</span>
-          </button>
-          ${isLinked
-          ? `<button class="btn btn-outline btn-sm btn-unlink-part" data-part-id="${partId}" style="color:var(--danger); border-color:var(--danger)">Unlink</button>`
-          : `<button class="btn btn-primary btn-sm btn-link-part" data-part-id="${partId}">Link</button>`
-        }
-        </td>
-      </tr>
-    `}).join('');
+      const disabledAttr = isLinked ? 'disabled' : '';
+      const actionBtn = isLinked
+        ? '<button class="btn btn-outline btn-sm btn-unlink-part" data-part-id="' + partId + '" style="color:var(--danger); border-color:var(--danger)">Unlink</button>'
+        : '<button class="btn btn-primary btn-sm btn-link-part" data-part-id="' + partId + '">Link</button>';
+        
+      return '<tr>' +
+        '<td style="text-align: center;"><input type="checkbox" class="chk-search-part" data-part-id="' + partId + '" ' + disabledAttr + '></td>' +
+        '<td class="part-number">' + (p.partNumber || '-') + '</td>' +
+        '<td>' + (p.name || '-') + '</td>' +
+        '<td style="text-align: center;">' +
+          '<button class="btn btn-outline btn-sm btn-info-part" data-part-id="' + partId + '" style="margin-right: 4px;" title="Info">' +
+            '<span class="material-icons-outlined" style="font-size:16px; pointer-events:none;">info</span>' +
+          '</button>' +
+          actionBtn +
+        '</td>' +
+      '</tr>';
+    }).join('');
 
     // Attach info listeners
     searchTbody.querySelectorAll('.btn-info-part').forEach(btn => {
@@ -581,7 +643,7 @@ async function renderPartLinking(tc) {
           await linkPartToBOM(currentBomId, partId);
           officiallyLinkedPartIds.add(partId);
           showToast('Part linked successfully', 'success');
-          
+
           // Re-render search list to update button
           displaySearchResults();
           // Also optionally reload the top list to reflect the new addition
@@ -595,7 +657,7 @@ async function renderPartLinking(tc) {
           await unlinkPartFromBOM(currentBomId, partId);
           officiallyLinkedPartIds.delete(partId);
           showToast('Part unlinked successfully', 'success');
-          
+
           // Re-render search list to update button
           displaySearchResults();
           // Also optionally reload the top list
@@ -613,7 +675,63 @@ async function renderPartLinking(tc) {
     tc.querySelector('#sp-total').textContent = allSearchParts.length;
     tc.querySelector('#sp-prev').disabled = currentPage === 1;
     tc.querySelector('#sp-next').disabled = currentPage === totalPages;
+    
+    // Reset selection state for this page
+    chkAllSearch.checked = false;
+    btnLinkSelected.style.display = 'none';
   };
+
+  // Setup bulk linking
+  const chkAllSearch = tc.querySelector('#chk-all-search');
+  const btnLinkSelected = tc.querySelector('#btn-link-selected');
+  
+  chkAllSearch?.addEventListener('change', (e) => {
+    const isChecked = e.target.checked;
+    const checkboxes = searchTbody.querySelectorAll('.chk-search-part:not([disabled])');
+    checkboxes.forEach(chk => chk.checked = isChecked);
+    btnLinkSelected.style.display = Array.from(checkboxes).some(c => c.checked) ? 'block' : 'none';
+  });
+
+  searchTbody.addEventListener('change', (e) => {
+    if (e.target.classList.contains('chk-search-part')) {
+      const checkboxes = searchTbody.querySelectorAll('.chk-search-part:not([disabled])');
+      const anyChecked = Array.from(checkboxes).some(c => c.checked);
+      const allChecked = Array.from(checkboxes).every(c => c.checked);
+      chkAllSearch.checked = allChecked && checkboxes.length > 0;
+      btnLinkSelected.style.display = anyChecked ? 'block' : 'none';
+    }
+  });
+
+  btnLinkSelected?.addEventListener('click', async () => {
+    const checked = Array.from(searchTbody.querySelectorAll('.chk-search-part:checked'));
+    if (!currentBomId || checked.length === 0) return;
+    
+    btnLinkSelected.disabled = true;
+    btnLinkSelected.textContent = 'Linking...';
+    let successCount = 0;
+    
+    for (const chk of checked) {
+      const partId = parseInt(chk.dataset.partId, 10);
+      try {
+        await linkPartToBOM(currentBomId, partId);
+        officiallyLinkedPartIds.add(partId);
+        successCount++;
+      } catch (err) {
+        showToast('Failed to link part ' + partId + ': ' + err.message, 'error');
+      }
+    }
+    
+    if (successCount > 0) {
+      showToast('Successfully linked ' + successCount + ' part(s)', 'success');
+      tc.querySelector('#btn-load-bom').click(); // Reload BOM list
+      displaySearchResults(); // Update search UI
+    }
+    
+    btnLinkSelected.disabled = false;
+    btnLinkSelected.textContent = 'Link Selected';
+    btnLinkSelected.style.display = 'none';
+    chkAllSearch.checked = false;
+  });
 
   tc.querySelector('#sp-prev')?.addEventListener('click', () => {
     if (currentPage > 1) {
@@ -632,7 +750,7 @@ async function renderPartLinking(tc) {
 
   tc.querySelector('#btn-search-parts')?.addEventListener('click', async () => {
     const query = tc.querySelector('#part-link-search-input').value.trim().toLowerCase();
-    searchTbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px">Searching parts...</td></tr>';
+    searchTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px">Searching parts...</td></tr>';
     paginationDiv.style.display = 'none';
 
     try {
