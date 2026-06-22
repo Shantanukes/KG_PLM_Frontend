@@ -403,6 +403,7 @@ async function renderPartLinking(tc) {
 
   let currentBomId = null;
   let allSearchParts = [];
+  let currentlyLinkedPartIds = new Set();
   let currentPage = 1;
   const itemsPerPage = 10;
 
@@ -437,7 +438,9 @@ async function renderPartLinking(tc) {
       const linkedParts = await getBomParts(currentBomId);
       const partsList = Array.isArray(linkedParts) ? linkedParts : (linkedParts?.items || [linkedParts]);
       const linkedItems = partsList.filter(Boolean);
+      currentlyLinkedPartIds = new Set(linkedItems.map(p => Number(p.partId ?? p.id)));
       renderLinkedPanel(linkedItems);
+      displaySearchResults();
     } catch (err) {
       console.error('[REFRESH LINKED STATE]', err);
       showToast('Could not refresh link status from server.', 'error');
@@ -489,13 +492,19 @@ async function renderPartLinking(tc) {
 
     searchTbody.innerHTML = paginatedItems.map(p => {
       const partId = p.partId ?? p.id;
+      const isLinked = currentlyLinkedPartIds.has(Number(partId));
+      const actionBtn = isLinked
+        ? `<button class="btn btn-outline btn-sm btn-unlink-part" data-part-id="${partId}" style="color:var(--danger-color);border-color:var(--danger-color);" title="Unlink Part">Unlink</button>`
+        : `<button class="btn btn-primary btn-sm btn-link-part" data-part-id="${partId}" title="Link Part">Link</button>`;
+
       return '<tr>' +
         '<td class="part-number">' + (p.partNumber || '-') + '</td>' +
         '<td>' + (p.name || '-') + '</td>' +
-        '<td style="text-align: center;">' +
+        '<td style="text-align: center; display: flex; gap: 4px; justify-content: center;">' +
           '<button class="btn btn-outline btn-sm btn-info-part" data-part-id="' + partId + '" title="Info">' +
             '<span class="material-icons-outlined" style="font-size:16px; pointer-events:none;">info</span>' +
           '</button>' +
+          actionBtn +
         '</td>' +
       '</tr>';
     }).join('');
@@ -513,6 +522,40 @@ async function renderPartLinking(tc) {
     if (e.target.closest('.btn-info-part')) {
       const b = e.target.closest('.btn-info-part');
       openPartInfoModal(parseInt(b.dataset.partId, 10));
+      return;
+    }
+    if (e.target.closest('.btn-link-part')) {
+      if (!currentBomId) return showToast('Please load a BOM first', 'error');
+      const b = e.target.closest('.btn-link-part');
+      const partId = parseInt(b.dataset.partId, 10);
+      try {
+        b.disabled = true;
+        b.innerHTML = '...';
+        await linkPartToBOM(currentBomId, partId);
+        showToast('Part linked successfully', 'success');
+        await refreshLinkedState();
+      } catch (err) {
+        showToast('Failed to link part', 'error');
+        b.disabled = false;
+        b.innerHTML = 'Link';
+      }
+      return;
+    }
+    if (e.target.closest('.btn-unlink-part')) {
+      if (!currentBomId) return showToast('Please load a BOM first', 'error');
+      const b = e.target.closest('.btn-unlink-part');
+      const partId = parseInt(b.dataset.partId, 10);
+      try {
+        b.disabled = true;
+        b.innerHTML = '...';
+        await unlinkPartFromBOM(currentBomId, partId);
+        showToast('Part unlinked successfully', 'success');
+        await refreshLinkedState();
+      } catch (err) {
+        showToast('Failed to unlink part', 'error');
+        b.disabled = false;
+        b.innerHTML = 'Unlink';
+      }
       return;
     }
   });
