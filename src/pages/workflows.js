@@ -357,7 +357,7 @@ async function renderMyTasks(tc) {
                 <td>
                   ${(t.type === 'UploadDrawing' || t.type === 'ReUploadDrawing') && !isDone ?
         `<button class="btn btn-primary btn-xs nav-upload-btn" data-part="${t.ref !== '-' ? t.ref : t.entityId}">Upload Drawing</button>` :
-        ((t.type === 'Part' || t.type === 'PartNumber' || t.type?.toLowerCase() === 'drawing') && !isDone ? `<button class="btn btn-outline btn-xs view-stage-btn" data-id="${t.entityId}" data-type="${t.type}">View Stage</button>` : '')}
+        ((t.type === 'Part' || t.type === 'PartNumber' || t.type?.toLowerCase() === 'drawing' || t.type === 'BOM') && !isDone ? `<button class="btn btn-outline btn-xs view-stage-btn" data-id="${t.entityId}" data-type="${t.type}">View Stage</button>` : '')}
                 </td>
               </tr>`}).join('') : '<tr><td colspan="8" class="text-center text-secondary py-4" style="text-align: center;">No pending tasks</td></tr>'}
           </tbody>
@@ -460,10 +460,13 @@ async function renderMyTasks(tc) {
       e.target.disabled = true;
 
       try {
-        const res = await authFetch('/api/Parts/' + entityId + '/current-approval-stage');
+        const itemType = e.target.dataset.type;
+        const res = itemType === 'BOM' 
+          ? await authFetch('/api/BOM/' + entityId + '/approval-status')
+          : await authFetch('/api/Parts/' + entityId + '/current-approval-stage');
+
         if (res.ok) {
           const data = await res.json();
-          const itemType = e.target.dataset.type;
           const resolvedType = data.approvalType || itemType;
           const isApprovable = resolvedType === 'PartNumber' || resolvedType?.toLowerCase() === 'drawing' || resolvedType === 'BOM';
           const currentUserRole = (getCurrentUserRole() || '').toLowerCase().replace(/\s/g, '');
@@ -473,9 +476,14 @@ async function renderMyTasks(tc) {
           const overlay = showModal('Current Approval Stage',
             `<div style="font-family:var(--font-mono); font-size:14px; line-height: 1.6; padding: 10px;">
                <div style="margin-bottom: 12px;"><strong>Approval Type:</strong> ${resolvedType || 'N/A'}</div>
-               <div style="margin-bottom: 12px;"><strong>Current Stage:</strong> <span class="badge" style="background:#F59E0B;color:#fff;">${data.currentApprovalStage || 'N/A'}</span></div>
-               <div style="margin-bottom: 12px;"><strong>Assigned To:</strong> ${data.name || 'N/A'}</div>
-               <div><strong>Role:</strong> ${data.role || 'N/A'}</div>
+               <div style="margin-bottom: 12px;"><strong>Current Stage:</strong> <span class="badge" style="background:#F59E0B;color:#fff;">${data.currentApprovalStage || data.bomStatus || 'N/A'}</span></div>
+               ${resolvedType === 'BOM' ? `
+                 <div style="margin-bottom: 12px;"><strong>Part:</strong> ${data.partNumber || '-'} (${data.partName || '-'})</div>
+                 <div><strong>Stages:</strong> ${data.totalStagesCompleted ?? 0} completed, ${data.totalStagesRemaining ?? 0} remaining</div>
+               ` : `
+                 <div style="margin-bottom: 12px;"><strong>Assigned To:</strong> ${data.name || 'N/A'}</div>
+                 <div><strong>Role:</strong> ${data.role || 'N/A'}</div>
+               `}
                ${(isApprovable && !isDesignerRole) ? `
                  <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border-light);" />
                  <div class="form-group" style="margin-bottom: 12px;">
@@ -780,7 +788,7 @@ async function renderInProgress(tc) {
                   <button class="btn btn-outline btn-xs view-wf-btn" data-id="${t.id}" style="margin-right:4px;">View</button>
                   ${(t.type === 'UploadDrawing' || t.type === 'ReUploadDrawing') ?
       `<button class="btn btn-primary btn-xs nav-upload-btn" data-part="${t.ref !== '-' ? t.ref : t.entityId}">Upload Drawing</button>` :
-      ((t.type === 'Part' || t.type === 'PartNumber' || t.type?.toLowerCase() === 'drawing') ? `<button class="btn btn-outline btn-xs view-stage-btn" data-id="${t.entityId}" data-type="${t.type}">View Stage</button>` : '')}
+      ((t.type === 'Part' || t.type === 'PartNumber' || t.type?.toLowerCase() === 'drawing' || t.type === 'BOM') ? `<button class="btn btn-outline btn-xs view-stage-btn" data-id="${t.entityId}" data-type="${t.type}">View Stage</button>` : '')}
                 </td>
               </tr>
             `).join('') : '<tr><td colspan="8" class="text-center text-secondary py-4" style="text-align: center;">No Pending workflows</td></tr>'}
@@ -810,12 +818,15 @@ async function renderInProgress(tc) {
       e.target.disabled = true;
 
       try {
-        const res = await authFetch('/api/Parts/' + entityId + '/current-approval-stage');
+        const itemType = e.target.dataset.type;
+        const res = itemType === 'BOM' 
+          ? await authFetch('/api/BOM/' + entityId + '/approval-status')
+          : await authFetch('/api/Parts/' + entityId + '/current-approval-stage');
+
         if (res.ok) {
           const data = await res.json();
-          const itemType = e.target.dataset.type;
           const resolvedType = data.approvalType || itemType;
-          const isApprovable = resolvedType === 'PartNumber' || resolvedType?.toLowerCase() === 'drawing';
+          const isApprovable = resolvedType === 'PartNumber' || resolvedType?.toLowerCase() === 'drawing' || resolvedType === 'BOM';
           
           const currentUserRole = (getCurrentUserRole() || '').toLowerCase().replace(/\s/g, '');
           const isDesignerRole = currentUserRole === 'designer';
@@ -824,9 +835,14 @@ async function renderInProgress(tc) {
           const overlay = showModal('Current Approval Stage',
             `<div style="font-family:var(--font-mono); font-size:14px; line-height: 1.6; padding: 10px;">
                <div style="margin-bottom: 12px;"><strong>Approval Type:</strong> ${resolvedType || 'N/A'}</div>
-               <div style="margin-bottom: 12px;"><strong>Current Stage:</strong> <span class="badge" style="background:#F59E0B;color:#fff;">${data.currentApprovalStage || 'N/A'}</span></div>
-               <div style="margin-bottom: 12px;"><strong>Assigned To:</strong> ${data.name || 'N/A'}</div>
-               <div><strong>Role:</strong> ${data.role || 'N/A'}</div>
+               <div style="margin-bottom: 12px;"><strong>Current Stage:</strong> <span class="badge" style="background:#F59E0B;color:#fff;">${data.currentApprovalStage || data.bomStatus || 'N/A'}</span></div>
+               ${resolvedType === 'BOM' ? `
+                 <div style="margin-bottom: 12px;"><strong>Part:</strong> ${data.partNumber || '-'} (${data.partName || '-'})</div>
+                 <div><strong>Stages:</strong> ${data.totalStagesCompleted ?? 0} completed, ${data.totalStagesRemaining ?? 0} remaining</div>
+               ` : `
+                 <div style="margin-bottom: 12px;"><strong>Assigned To:</strong> ${data.name || 'N/A'}</div>
+                 <div><strong>Role:</strong> ${data.role || 'N/A'}</div>
+               `}
                ${(isApprovable && !isDesignerRole) ? `
                  <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border-light);" />
                  <div class="form-group" style="margin-bottom: 12px;">
@@ -1144,11 +1160,30 @@ async function renderHistory(tc) {
     const apiData = await fetchWorkflows();
     const fetchedTasks = Array.isArray(apiData) ? apiData : (apiData?.items || []);
 
-    // Extract unique part IDs
-    const partIds = [...new Set(fetchedTasks.map(t => t.entityId).filter(id => id))];
+    // Extract unique workflow targets
+    const uniqueTargets = [];
+    const seen = new Set();
+    fetchedTasks.forEach(t => {
+      if (!t.entityId) return;
+      const type = t.type || t.approvalType || '';
+      const key = `${type}-${t.entityId}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueTargets.push({ id: t.entityId, type });
+      }
+    });
 
-    // Fetch history for each part concurrently
-    const historyPromises = partIds.map(id => fetchPartApprovalHistory(id).catch(() => []));
+    // Fetch history concurrently
+    const historyPromises = uniqueTargets.map(target => {
+      if (target.type === 'BOM') {
+         return authFetch(`/api/BOM/${target.id}/approval-history`)
+           .then(res => res.json())
+           .catch(() => []);
+      } else {
+         return fetchPartApprovalHistory(target.id).catch(() => []);
+      }
+    });
+    
     const historyResults = await Promise.all(historyPromises);
 
     // Flatten and format the results

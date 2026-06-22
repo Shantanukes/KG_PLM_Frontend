@@ -422,11 +422,11 @@ async function renderPartLinking(tc) {
           '<td class="part-number">' + (p.partNumber || '-') + '</td>' +
           '<td>' + (p.name || '-') + '</td>' +
           '<td style="text-align: center;">' +
-            '<button class="btn btn-outline btn-sm btn-info-part" data-part-id="' + partId + '" title="Info">' +
-              '<span class="material-icons-outlined" style="font-size:16px; pointer-events:none;">info</span>' +
-            '</button>' +
+          '<button class="btn btn-outline btn-sm btn-info-part" data-part-id="' + partId + '" title="Info">' +
+          '<span class="material-icons-outlined" style="font-size:16px; pointer-events:none;">info</span>' +
+          '</button>' +
           '</td>' +
-        '</tr>';
+          '</tr>';
       }).join('');
     }
   }
@@ -501,12 +501,12 @@ async function renderPartLinking(tc) {
         '<td class="part-number">' + (p.partNumber || '-') + '</td>' +
         '<td>' + (p.name || '-') + '</td>' +
         '<td style="text-align: center; display: flex; gap: 4px; justify-content: center;">' +
-          '<button class="btn btn-outline btn-sm btn-info-part" data-part-id="' + partId + '" title="Info">' +
-            '<span class="material-icons-outlined" style="font-size:16px; pointer-events:none;">info</span>' +
-          '</button>' +
-          actionBtn +
+        '<button class="btn btn-outline btn-sm btn-info-part" data-part-id="' + partId + '" title="Info">' +
+        '<span class="material-icons-outlined" style="font-size:16px; pointer-events:none;">info</span>' +
+        '</button>' +
+        actionBtn +
         '</td>' +
-      '</tr>';
+        '</tr>';
     }).join('');
 
     paginationDiv.style.display = 'flex';
