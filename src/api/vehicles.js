@@ -6,6 +6,14 @@ export async function getVehicleModels() {
   const text = await response.text();
   return text ? JSON.parse(text) : {};
 }
+
+export async function getVehicleModelCodes(id) {
+  const response = await authFetch(`/api/VehicleModels/${id}/codes`);
+  if (!response.ok) throw new Error(`Failed to fetch vehicle model codes (${response.status})`);
+  const text = await response.text();
+  return text ? JSON.parse(text) : {};
+}
+
 export async function createVehicleModel(data) {
   const response = await authFetch('/api/VehicleModels', {
     method: 'POST',

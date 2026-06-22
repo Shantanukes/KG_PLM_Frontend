@@ -1,5 +1,6 @@
 import { showToast, showModal, navigateTo, getCurrentUserRole } from '../main.js';
 import { authFetch } from '../api/client.js';
+import { getVehicleModels, getVehicleModelCodes } from '../api/vehicles.js';
 import { createPart, getParts, getPartById, getPartByNumber, updatePart } from '../api/parts.js';
 import { createBom, getBomTree, updateBomLine, deleteBomLine, getBomLines, getBomWhereUsed, getBomByTeamId, getBomParts, getAllBomsWithParts, linkBomWithParent, linkPartToBOM, unlinkPartFromBOM } from '../api/bom.js';
 
@@ -759,6 +760,21 @@ async function renderBomParts(tc) {
 
 // ΓöÇΓöÇΓöÇ Create BOM Modal ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 export async function openCreateBomModal(prefill = {}) {
+  // Fetch dynamic models
+  let models = [];
+  try {
+    const modelsData = await getVehicleModels().catch(() => []);
+    if (Array.isArray(modelsData)) {
+      models = modelsData;
+    } else if (modelsData && Array.isArray(modelsData.items)) {
+      models = modelsData.items;
+    }
+  } catch (e) {
+    console.warn('Failed to load vehicle models', e);
+  }
+
+  const useDynamic = models && models.length > 0;
+
   // Group number is hardcoded to 0:1
   const groupOpts = '<option value="0:1" selected>01 - General/Root</option>';
 
@@ -767,16 +783,35 @@ export async function openCreateBomModal(prefill = {}) {
     `<div class="detail-grid">
       <div class="form-group">
         <label class="form-label">Product Category <span style="color:#DC2626">*</span></label>
+        ${useDynamic ? `
+        <input class="form-input" id="bom-cat-code" readonly style="background:var(--bg-muted); cursor:not-allowed;" placeholder="Auto-filled" />
+        ` : `
         <select class="form-select" id="bom-cat-code">
           ${optionsHtml(PRODUCT_CATEGORIES, 'code', 'label')}
         </select>
+        `}
       </div>
+      
+      ${useDynamic ? `
+      <div class="form-group">
+        <label class="form-label">Vehicle Model <span style="color:#DC2626">*</span></label>
+        <select class="form-select" id="bom-vehicle-model-select">
+          <option value="">Select a Vehicle Model</option>
+          ${models.map(m => `<option value="${m.id}" ${prefill.vehicleModelId == m.id ? 'selected' : ''}>${m.name} (${m.modelCode || m.code || 'N/A'})</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Model Number <span style="color:#DC2626">*</span></label>
+        <input class="form-input" id="bom-model-code" readonly style="background:var(--bg-muted); cursor:not-allowed;" placeholder="Auto-filled" />
+      </div>
+      ` : `
       <div class="form-group">
         <label class="form-label">Model Number <span style="color:#DC2626">*</span></label>
         <select class="form-select" id="bom-model-code">
           ${optionsHtml(MODEL_NUMBERS, 'code', 'label')}
         </select>
       </div>
+      `}
       <div class="form-group">
         <label class="form-label">Group Number <span style="color:#DC2626">*</span></label>
         <select class="form-select" id="bom-group-number" disabled>${groupOpts}</select>
@@ -803,7 +838,7 @@ export async function openCreateBomModal(prefill = {}) {
         <label class="form-label">BOM Name <span style="color:#DC2626">*</span></label>
         <input class="form-input" id="bom-name" placeholder="Enter BOM name" value="${prefill.name || ''}" />
       </div>
-      <div class="form-group">
+      <div class="form-group" style="${useDynamic ? 'display:none' : ''}">
         <label class="form-label">Vehicle Model ID</label>
         <input class="form-input" id="bom-vehicle-model-id" readonly style="background:var(--bg-muted)" placeholder="Auto-filled from model selection" value="${prefill.vehicleModelId || ''}" />
       </div>
@@ -828,19 +863,21 @@ export async function openCreateBomModal(prefill = {}) {
      <button class="btn btn-primary" id="save-new-bom">Create BOM</button>`
   );
 
-  // Pre-fill the selects if prefill data was passed
-  if (prefill.categoryCode) {
-    const catEl2 = document.getElementById('bom-cat-code');
-    if (catEl2) {
-      const matchOpt = [...catEl2.options].find(o => o.value === prefill.categoryCode);
-      if (matchOpt) catEl2.value = prefill.categoryCode;
+  // Pre-fill the selects if prefill data was passed and not dynamic
+  if (!useDynamic) {
+    if (prefill.categoryCode) {
+      const catEl2 = document.getElementById('bom-cat-code');
+      if (catEl2) {
+        const matchOpt = [...catEl2.options].find(o => o.value === prefill.categoryCode);
+        if (matchOpt) catEl2.value = prefill.categoryCode;
+      }
     }
-  }
-  if (prefill.modelCode) {
-    const modelEl2 = document.getElementById('bom-model-code');
-    if (modelEl2) {
-      const matchOpt = [...modelEl2.options].find(o => o.value === prefill.modelCode);
-      if (matchOpt) modelEl2.value = prefill.modelCode;
+    if (prefill.modelCode) {
+      const modelEl2 = document.getElementById('bom-model-code');
+      if (modelEl2) {
+        const matchOpt = [...modelEl2.options].find(o => o.value === prefill.modelCode);
+        if (matchOpt) modelEl2.value = prefill.modelCode;
+      }
     }
   }
   if (prefill.description) {
@@ -888,6 +925,33 @@ export async function openCreateBomModal(prefill = {}) {
   [catEl, modelEl, groupEl, machEl, revEl, devEl].forEach(el => el?.addEventListener('change', syncPreview));
   syncPreview();
 
+  const vehicleSelect = document.getElementById('bom-vehicle-model-select');
+  if (vehicleSelect) {
+    const handleVehicleChange = async () => {
+      const id = vehicleSelect.value;
+      if (!id) {
+        if (catEl) catEl.value = '';
+        if (modelEl) modelEl.value = '';
+        syncPreview();
+        return;
+      }
+      try {
+        const codes = await getVehicleModelCodes(id);
+        if (catEl) catEl.value = codes.categoryCode || '';
+        if (modelEl) modelEl.value = codes.modelCode || '';
+        syncPreview();
+      } catch (err) {
+        console.error('Failed to fetch vehicle model codes', err);
+        showToast('Failed to load model codes', 'error');
+      }
+    };
+    vehicleSelect.addEventListener('change', handleVehicleChange);
+    // Initial fetch if prefilled
+    if (vehicleSelect.value) {
+      handleVehicleChange();
+    }
+  }
+
   document.getElementById('save-new-bom')?.addEventListener('click', async () => {
     const categoryCode = catEl?.value?.trim();
     const modelCode = modelEl?.value?.trim();
@@ -916,7 +980,7 @@ export async function openCreateBomModal(prefill = {}) {
       description: document.getElementById('bom-description')?.value?.trim() || '',
       teamId: Number(teamIdVal) || 0,
       parentBOMId: Number(parentBOMIdVal) || 0,
-      vehicleModelId: Number(document.getElementById('bom-vehicle-model-id')?.value) || 0
+      vehicleModelId: Number(document.getElementById('bom-vehicle-model-select')?.value) || Number(document.getElementById('bom-vehicle-model-id')?.value) || 0
     };
     console.log('[BOM CREATE] Sending payload:', JSON.stringify(bomPayload, null, 2));
 

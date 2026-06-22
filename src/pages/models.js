@@ -11,6 +11,9 @@ export function renderModels(container) {
         <p>Manage the full Kinetic Green portfolio — vehicle platforms, variant matrices, and production configurations.</p>
       </div>
       <div class="page-actions">
+        <button class="btn btn-primary btn-sm" id="mdl-create-bom" style="margin-right: 8px;">
+          <span class="material-icons-outlined" style="font-size:16px">account_tree</span>Create BOM
+        </button>
         <button class="btn btn-outline btn-sm" id="mdl-configurator">
           <span class="material-icons-outlined" style="font-size:16px">tune</span>Configurator
         </button>
@@ -24,7 +27,9 @@ export function renderModels(container) {
 
     <div id="mdl-content" style="margin-top: 16px;"></div>
   `;
-
+  container.querySelector('#mdl-create-bom')?.addEventListener('click', () => {
+    openCreateBomModal();
+  });
 
   container.querySelector('#mdl-add')?.addEventListener('click', () => {
 
@@ -199,9 +204,6 @@ function buildCatalogueCards(tc, models) {
           </div>
           <span class="badge ${statusTag}" style="align-self:flex-start;">${statusLbl}</span>
         </div>
-        <button class="btn btn-primary btn-sm create-bom-btn" data-id="${m.id}" data-name="${m.name}" data-code="${m.modelCode || m.code || ''}" data-cat="${m.categoryCode || ''}" style="margin-left:auto;">
-          <span class="material-icons-outlined" style="font-size:16px">account_tree</span>Create BOM
-        </button>
       </div>
       <div class="card-body">
         <div style="font-size:0.857rem;color:var(--text-secondary);margin-bottom:14px">Created: ${m.createdAt ? new Date(m.createdAt).toLocaleString() : '-'}</div>
@@ -232,19 +234,6 @@ function buildCatalogueCards(tc, models) {
     const modelName = card.querySelector('.card-title')?.textContent.toLowerCase() || '';
     const matchSearch = !searchQ || modelName.includes(searchQ);
     card.style.display = (matchCat && matchSearch) ? '' : 'none';
-  });
-
-  tc.querySelectorAll('.create-bom-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const prefill = {
-        categoryCode: btn.dataset.cat || '',
-        modelCode: btn.dataset.code || '',
-        name: btn.dataset.name || '',
-        vehicleModelId: btn.dataset.id || 0
-      };
-      openCreateBomModal(prefill);
-    });
   });
 
   tc.querySelectorAll('.view-bom-btn').forEach(btn => {
