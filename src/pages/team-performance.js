@@ -95,7 +95,7 @@ export async function renderTeamPerformance(container) {
         }
       ]
     };
-    teams = mockResponse.teams;
+    // teams = mockResponse.teams;
   }
 
   const renderTeamCards = () => {

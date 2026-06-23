@@ -93,7 +93,7 @@ export async function renderMembers(container) {
       const colLower = col.toLowerCase();
 
       if (colLower === 'role' || colLower === 'roleid') {
-        const rMap = { 0: 'None', 1: 'Super Admin', 2: 'Quality Auditor', 3: 'Project Manager', 4: 'COE Head', 6: 'Designer', 7: 'Project Head', 8: 'R&D Head', 9: 'Sourcing', 10: 'Proto', 11: 'Founder', 12: 'Co-Founder', 'RnDHead': 'R&D Head', 'SuperAdmin': 'Super Admin', 'Co-Founder': 'Co-Founder', 'Founder': 'Founder', 'Proto': 'Proto', 'Sourcing': 'Sourcing' };
+        const rMap = { 0: 'None', 1: 'Super Admin', 2: 'Quality Auditor', 3: 'Project Manager', 4: 'COE Head', 6: 'Designer', 7: 'Project Head', 8: 'R&D Head', 9: 'Sourcing', 10: 'Proto', 11: 'Founder', 12: 'Co-Founder', 13: 'Design Head', 14: 'Homologation', 'RnDHead': 'R&D Head', 'SuperAdmin': 'Super Admin', 'Co-Founder': 'Co-Founder', 'Founder': 'Founder', 'Proto': 'Proto', 'Sourcing': 'Sourcing', 'DesignHead': 'Design Head', 'Homologation': 'Homologation' };
         let rName = rMap[val] !== undefined ? rMap[val] : String(val).replace(/_/g, ' ');
         rName = typeof rName === 'string' ? rName.replace(/RnD/ig, 'R&D') : rName;
         val = (val !== undefined && val !== null) ? rName : '-';
@@ -150,7 +150,7 @@ export async function renderMembers(container) {
     const eId = getVal('employeeId', 'EmployeeId');
 
     const dMapRev = { 'None': 0, 'R_AND_D_Engineering': 1, 'Quality': 2, 'SEM': 3, 'Manufacturing': 4, 'IT_Systems': 5 };
-    const rMapRev = { 'None': 0, 'SuperAdmin': 1, 'Super Admin': 1, 'QualityAuditor': 2, 'Quality Auditor': 2, 'ProjectManager': 3, 'Project Manager': 3, 'COEHead': 4, 'COE Head': 4, 'Designer': 6, 'ProjectHead': 7, 'Project Head': 7, 'R&DHead': 8, 'RnDHead': 8, 'Sourcing': 9, 'Proto': 10, 'Founder': 11, 'Co-Founder': 12 };
+    const rMapRev = { 'None': 0, 'SuperAdmin': 1, 'Super Admin': 1, 'QualityAuditor': 2, 'Quality Auditor': 2, 'ProjectManager': 3, 'Project Manager': 3, 'COEHead': 4, 'COE Head': 4, 'Designer': 6, 'ProjectHead': 7, 'Project Head': 7, 'R&DHead': 8, 'RnDHead': 8, 'Sourcing': 9, 'Proto': 10, 'Founder': 11, 'Co-Founder': 12, 'DesignHead': 13, 'Design Head': 13, 'Homologation': 14 };
 
     let dId = getVal('department', 'Department') || getVal('departmentId', 'DepartmentId') || 1;
     if (typeof dId === 'string' && dMapRev[dId]) dId = dMapRev[dId];

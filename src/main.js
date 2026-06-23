@@ -925,9 +925,11 @@ function openProfileModal() {
           <option value="10">Proto</option>
           <option value="11">Founder</option>
           <option value="12">Co-Founder</option>
+          <option value="13">Design Head</option>
+          <option value="14">Homologation</option>
         </select>
       </div>
-      <div class="form-group" style="margin-bottom: 24px;">
+      <div class="form-group" style="margin-bottom: 24  px;">
         <label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">Department <span style="color:#DC2626">*</span></label>
         <select class="form-select" id="prof-dept" style="width:100%;">
           <option value="0">None</option>
