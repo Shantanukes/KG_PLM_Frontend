@@ -2198,14 +2198,31 @@ async function renderCreatePart(tc) {
     .forEach(el => el.addEventListener('change', updatePN));
   updatePN();
 
-  // Show EE Release only when group number is in range 51–59
+  // Show EE Release + lock Release Flag to EC when group is in range 51–59
   const toggleEeRelease = () => {
     const groupVal = tc.querySelector('#cp-group')?.value || '';
     const [gc, sc] = groupVal.split(':');
     const combined = Number(gc || 0) * 10 + Number(sc || 0);
     const show = combined >= 51 && combined <= 59;
+    // EE Release field
     const eeGroup = tc.querySelector('#cp-ee-release-group');
     if (eeGroup) eeGroup.style.display = show ? 'block' : 'none';
+    // Release Flag: lock to EC when in range, restore otherwise
+    const rfSelect = tc.querySelector('#cp-release-flag');
+    if (rfSelect) {
+      if (show) {
+        rfSelect.value = '0';      // force EC
+        rfSelect.disabled = true;
+        rfSelect.style.opacity = '0.6';
+        rfSelect.style.cursor = 'not-allowed';
+        rfSelect.title = 'EC is required for group numbers 51–59';
+      } else {
+        rfSelect.disabled = false;
+        rfSelect.style.opacity = '';
+        rfSelect.style.cursor = '';
+        rfSelect.title = '';
+      }
+    }
   };
   tc.querySelector('#cp-group')?.addEventListener('change', toggleEeRelease);
   toggleEeRelease();
