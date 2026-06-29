@@ -214,6 +214,7 @@ export function renderBOM(container) {
       <button class="tab-btn" data-tab="bom-parts">BOM Parts</button>
       <button class="tab-btn" data-tab="bom-compare">BOM Compare</button>
       <button class="tab-btn" data-tab="part-linking">Part linking</button>
+      <button class="tab-btn" data-tab="bom-cloning">BOM Cloning</button>
     </div>
 
     <div id="tab-content"></div>
@@ -283,7 +284,100 @@ function renderTabContent(tc, tab) {
   else if (tab === 'bom-parts') renderBomParts(tc);
   else if (tab === 'bom-compare') renderBomCompare(tc);
   else if (tab === 'part-linking') renderPartLinking(tc);
+  else if (tab === 'bom-cloning') renderBomCloning(tc);
 }
+
+// ─── BOM Cloning ───────────────────────────────────────────────
+async function renderBomCloning(tc) {
+  tc.innerHTML = `
+    <div style="display:flex;gap:24px;height:calc(100vh - 200px);">
+      <div style="flex:1;background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;display:flex;flex-direction:column;max-width:500px;margin: 0 auto;">
+        <h2 style="margin-bottom:16px;font-size:1.2rem;color:var(--text-primary);display:flex;align-items:center;gap:8px;">
+          <span class="material-icons-outlined" style="color:#DC2626;">offline_bolt</span> 
+          Direct Part Cloning (Bypass ECN)
+        </h2>
+        <p style="color:var(--text-secondary);margin-bottom:24px;font-size:0.9rem;">
+          Instantly clone all parts from a Source BOM directly into a Target BOM. This action bypasses standard ECN and approval workflows.
+        </p>
+
+        <div class="form-group">
+          <label class="form-label">Source BOM ID <span style="color:#DC2626">*</span></label>
+          <input type="number" class="form-input" id="clone-source-id" placeholder="Enter Source BOM ID" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Target BOM ID <span style="color:#DC2626">*</span></label>
+          <input type="number" class="form-input" id="clone-target-id" placeholder="Enter Target BOM ID" />
+        </div>
+
+        <div style="background-color: #FEF2F2; border: 1px solid #FCA5A5; color: #991B1B; padding: 12px; border-radius: var(--radius-md); margin-bottom: 24px; font-size: 0.85rem; display: flex; align-items: start; gap: 10px;">
+          <span class="material-icons-outlined" style="font-size: 20px;">warning</span>
+          <div style="line-height: 1.4;">
+            <strong style="display:block; margin-bottom:4px;">Warning: Direct Action</strong> 
+            This will immediately copy all parts without requiring managerial or ECN approvals. Ensure the target BOM is correct.
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="btn-submit-clone" style="margin-top:auto; background-color: #DC2626; border-color: #DC2626;">
+          <span class="material-icons-outlined" style="font-size:18px">content_copy</span> Force Clone Parts
+        </button>
+      </div>
+    </div>
+  `;
+
+  tc.querySelector('#btn-submit-clone').addEventListener('click', async () => {
+    const sourceId = tc.querySelector('#clone-source-id').value.trim();
+    const targetId = tc.querySelector('#clone-target-id').value.trim();
+
+    if (!sourceId || !targetId) {
+      showToast('Source BOM ID and Target BOM ID are required.', 'warning');
+      return;
+    }
+
+    const btn = tc.querySelector('#btn-submit-clone');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-icons-outlined spinner" style="font-size:18px">autorenew</span> Cloning...';
+
+    try {
+      const partsResponse = await getBomParts(sourceId);
+      const partsToClone = Array.isArray(partsResponse) ? partsResponse : (partsResponse?.items || []);
+      
+      if (partsToClone.length === 0) {
+        showToast('No parts found in the source BOM.', 'info');
+      } else {
+        let successCount = 0;
+        let failCount = 0;
+        for (const p of partsToClone) {
+          const partId = p.partId ?? p.id;
+          if (partId) {
+            try {
+              await linkPartToBOM(targetId, partId);
+              successCount++;
+            } catch (e) {
+              console.error('Error linking part', partId, e);
+              failCount++;
+            }
+          }
+        }
+        if (failCount === 0) {
+          showToast(`Successfully cloned ${successCount} parts to Target BOM!`, 'success');
+        } else {
+          showToast(`Cloned ${successCount} parts, but ${failCount} failed.`, 'warning');
+        }
+      }
+      
+      tc.querySelector('#clone-source-id').value = '';
+      tc.querySelector('#clone-target-id').value = '';
+    } catch (err) {
+      console.error('Clone Error:', err);
+      showToast(err.message || 'Error cloning parts', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-icons-outlined" style="font-size:18px">content_copy</span> Force Clone Parts';
+    }
+  });
+}
+
 
 // ─── Part Linking ───────────────────────────────────────────────
 async function renderPartLinking(tc) {
@@ -1061,7 +1155,117 @@ export async function openCreateBomModal(prefill = {}) {
     renderPartDetail(bomNumber);
 
     document.querySelector('.modal-overlay')?.remove();
+    
+    // Open the Clone Prompt modal
+    if (backendId && categoryCode) {
+      setTimeout(() => openClonePromptModal(backendId, categoryCode), 100);
+    }
   });
+}
+
+// ─── Post-BOM Creation Clone Prompt ────────────────────────────────
+async function openClonePromptModal(newBomId, categoryCode) {
+  let boms = [];
+  try {
+    const res = await authFetch('/api/BOM/category/' + categoryCode);
+    if (res.ok) {
+      const data = await res.json();
+      boms = Array.isArray(data) ? data : (data.items || []);
+    }
+  } catch (err) {
+    console.error('Failed to load BOMs for cloning', err);
+  }
+
+  const optionsHtml = boms.length 
+    ? boms.map(b => '<option value="' + b.id + '">' + (b.bomNumber || 'Unknown') + ' - ' + (b.name || 'Unnamed') + '</option>').join('')
+    : '<option value="">No BOMs found</option>';
+
+  showModal(
+    'Clone Parts from Existing BOM?',
+    `<div>
+       <p style="margin-bottom: 16px; color: var(--text-secondary);">Do you want to clone parts from an existing BOM into the newly created BOM?</p>
+       <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight: 500; font-size: 1rem; margin-bottom: 16px;">
+         <input type="checkbox" id="clone-prompt-checkbox" style="width:16px;height:16px;cursor:pointer;" />
+         Yes, clone parts
+       </label>
+       <div id="clone-prompt-container" style="display:none; background: var(--bg-muted); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border);">
+         <div class="form-group">
+           <label class="form-label">Select BOM to Clone From <span style="color:#DC2626">*</span></label>
+           <select class="form-select" id="clone-prompt-select">
+             <option value="">-- Select BOM --</option>
+             ${optionsHtml}
+           </select>
+         </div>
+       </div>
+     </div>`,
+     `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Skip / Cancel</button>
+      <button class="btn btn-primary" id="btn-submit-clone-prompt" disabled>Clone Parts</button>`
+  );
+
+  const checkbox = document.getElementById('clone-prompt-checkbox');
+  const container = document.getElementById('clone-prompt-container');
+  const select = document.getElementById('clone-prompt-select');
+  const submitBtn = document.getElementById('btn-submit-clone-prompt');
+
+  if (checkbox) {
+    checkbox.addEventListener('change', (e) => {
+      container.style.display = e.target.checked ? 'block' : 'none';
+      submitBtn.disabled = !e.target.checked || !select.value;
+    });
+  }
+
+  if (select) {
+    select.addEventListener('change', () => {
+      submitBtn.disabled = !checkbox.checked || !select.value;
+    });
+  }
+
+  if (submitBtn) {
+    submitBtn.addEventListener('click', async () => {
+      const sourceId = select.value;
+      if (!sourceId) return;
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="material-icons-outlined spinner" style="font-size:18px">autorenew</span> Cloning...';
+      try {
+        const partsResponse = await getBomParts(sourceId);
+        const partsToClone = Array.isArray(partsResponse) ? partsResponse : (partsResponse?.items || []);
+        
+        if (partsToClone.length === 0) {
+          showToast('No parts found in the source BOM.', 'info');
+          document.querySelector('.modal-overlay')?.remove();
+          return;
+        }
+
+        let successCount = 0;
+        let failCount = 0;
+        for (const p of partsToClone) {
+          const partId = p.partId ?? p.id;
+          if (partId) {
+            try {
+              await linkPartToBOM(newBomId, partId);
+              successCount++;
+            } catch (e) {
+              console.error('Failed to link part', partId, e);
+              failCount++;
+            }
+          }
+        }
+        
+        if (failCount === 0) {
+          showToast(`Successfully cloned ${successCount} parts!`, 'success');
+        } else {
+          showToast(`Cloned ${successCount} parts, but ${failCount} failed.`, 'warning');
+        }
+        document.querySelector('.modal-overlay')?.remove();
+      } catch (err) {
+        console.error('Clone Error:', err);
+        showToast(err.message || 'Error cloning parts', 'error');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = 'Clone Parts';
+      }
+    });
+  }
 }
 
 // ΓöÇΓöÇΓöÇ Fetch live BOM from server and merge into local tree ΓöÇΓöÇΓöÇΓöÇΓöÇ

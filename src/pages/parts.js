@@ -1760,6 +1760,10 @@ async function renderCreatePart(tc) {
         </div>
 
         <div class="grid-2" style="gap:20px">
+          <div class="form-group" style="grid-column:1 / -1">
+            <label class="form-label">BOM ID <span style="color:#DC2626">*</span></label>
+            <input class="form-input" type="number" id="cp-bomid" placeholder="Enter BOM ID" />
+          </div>
           <div class="form-group">
             <label class="form-label">Product Category <span style="color:#DC2626">*</span></label>
             <select class="form-select" id="cp-cat">
@@ -1805,9 +1809,8 @@ async function renderCreatePart(tc) {
           <div class="form-group">
             <label class="form-label">Make / Buy <span style="color:#DC2626">*</span></label>
             <select class="form-select" id="cp-makebuy">
-              <option value="0">0 - FSS Full Supplier Scope</option>
-              <option value="1">1 - Make (In-house)</option>
-              <option value="2">2 - BTP Built to Print</option>
+              <option value="0">0 - Component</option>
+              <option value="1">1 - Assembly</option>
             </select>
           </div>
           <div class="form-group">
@@ -1837,8 +1840,8 @@ async function renderCreatePart(tc) {
           <div class="form-group">
             <label class="form-label">Release Flag <span style="color:#DC2626">*</span></label>
             <select class="form-select" id="cp-release-flag">
-              <option value="0">EC</option>
-              <option value="1">CD</option>
+              <option value="0">E-Release</option>
+              <option value="1">FS-Release</option>
               <option value="2">Proto</option>
             </select>
           </div>
@@ -1919,11 +1922,11 @@ async function renderCreatePart(tc) {
     const rfSelect = tc.querySelector('#cp-release-flag');
     if (rfSelect) {
       if (show) {
-        rfSelect.value = '0';      // force EC
+        rfSelect.value = '0';      // force E-Release
         rfSelect.disabled = true;
         rfSelect.style.opacity = '0.6';
         rfSelect.style.cursor = 'not-allowed';
-        rfSelect.title = 'EC is required for group numbers 51–59';
+        rfSelect.title = 'E-Release is required for group numbers 51–59';
       } else {
         rfSelect.disabled = false;
         rfSelect.style.opacity = '';
@@ -1947,6 +1950,7 @@ async function renderCreatePart(tc) {
   });
 
   tc.querySelector('#cp-submit')?.addEventListener('click', async () => {
+    const bomIdStr = tc.querySelector('#cp-bomid')?.value?.trim();
     const name = tc.querySelector('#cp-name')?.value?.trim();
     const [groupCode, subGroupCode] = String(tc.querySelector('#cp-group')?.value || '').split(':');
     const categoryCode = tc.querySelector('#cp-cat')?.value?.trim();
@@ -1957,6 +1961,9 @@ async function renderCreatePart(tc) {
     const unitOfMeasure = tc.querySelector('#cp-uom')?.value?.trim();
     const releaseFlagStr = tc.querySelector('#cp-release-flag')?.value;
 
+    if (!bomIdStr) return showToast('BOM ID is required.', 'error');
+    const bomId = parseInt(bomIdStr, 10);
+    if (isNaN(bomId)) return showToast('BOM ID must be a valid number.', 'error');
     if (!name) return showToast('Part name is required.', 'error');
     if (!categoryCode || !modelCode || !groupCode || !subGroupCode) return showToast('Category, model, and group are required.', 'error');
     if (releaseFlagStr === '' || releaseFlagStr === undefined || releaseFlagStr === null) return showToast('Release Flag is required.', 'error');
@@ -1965,7 +1972,7 @@ async function renderCreatePart(tc) {
     const generatedPartNumber = buildPartNumber({ categoryCode, modelCode, groupCode, subCode: subGroupCode, serial, machiningCode, revisionLetter, devStatusCode });
 
     const payload = {
-      bomId: 0,
+      bomId: bomId,
       categoryCode,
       modelCode,
       groupCode,
