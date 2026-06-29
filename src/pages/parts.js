@@ -565,8 +565,8 @@ async function openApproveRequestModal(req, tc) {
       <div class="form-group">
         <label class="form-label">Make / Buy</label>
         <select class="form-select" id="appr-makebuy">
-          <option value="0">Make</option>
-          <option value="1">Buy</option>
+          <option value="0">Component</option>
+          <option value="1">Assembly</option>
         </select>
       </div>
       <div class="form-group">
@@ -1809,8 +1809,8 @@ async function renderCreatePart(tc) {
           <div class="form-group">
             <label class="form-label">Make / Buy <span style="color:#DC2626">*</span></label>
             <select class="form-select" id="cp-makebuy">
-              <option value="0">0 - Component</option>
-              <option value="1">1 - Assembly</option>
+              <option value="0">Component</option>
+              <option value="1">Assembly</option>
             </select>
           </div>
           <div class="form-group">
