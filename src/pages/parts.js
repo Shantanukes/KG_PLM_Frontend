@@ -1857,7 +1857,10 @@ async function renderCreatePart(tc) {
             <label class="form-label">Homologation Required</label>
             <select class="form-select" id="cp-homo"><option value="0">No</option><option value="1">Yes</option></select>
           </div>
-
+          <div class="form-group">
+            <label class="form-label">Assigned Designer ID <span style="color:#DC2626">*</span></label>
+            <input class="form-input" type="number" id="cp-designer" placeholder="Enter Designer ID" value="0" />
+          </div>
         </div>
 
         <div class="form-group" style="margin-top:8px">
@@ -1992,7 +1995,7 @@ async function renderCreatePart(tc) {
       gstCode: tc.querySelector('#cp-gstcode')?.value?.trim() || '',
       quantity: Number(tc.querySelector('#cp-quantity')?.value || 1),
       homologationStatus: Number(tc.querySelector('#cp-homo')?.value || 0),
-      assignedToDesignerUserId: 0
+      assignedToDesignerUserId: Number(tc.querySelector('#cp-designer')?.value || 0)
     };
 
     const submitBtn = tc.querySelector('#cp-submit');
