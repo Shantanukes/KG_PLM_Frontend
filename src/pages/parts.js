@@ -242,7 +242,7 @@ function createPartRecordFromBom({ bomNumber, description, type, qty, unit, weig
 // ─── Main render ─────────────────────────────────────────────
 export function renderParts(container) {
   const role = (getCurrentUserRole() || '').toLowerCase();
-  const isProjectManager = role.replace(/\s/g, '') === 'projectmanager';
+  const isProjectManager = role.replace(/\s/g, '') === 'projectmanager' || role.replace(/\s/g, '') === 'superadmin';
 
   container.innerHTML = `
     <div class="page-header">
@@ -454,7 +454,7 @@ export function renderParts(container) {
 
           let serialNumber = '001';
           if (previewEl.value && previewEl.value.length >= 7) {
-            serialNumber = previewEl.value.slice(4, 7);
+            serialNumber = previewEl.value.slice(5, 8);
           }
 
           const payload = {
@@ -472,7 +472,7 @@ export function renderParts(container) {
             makeBuy: parseInt(document.getElementById('req-makebuy')?.value || "0", 10),
             releaseFlag: parseInt(document.getElementById('req-release-flag')?.value || "0", 10),
             propNonProp: parseInt(document.getElementById('req-prop-nonprop')?.value || "0", 10),
-            eeRelease: parseInt(document.getElementById('req-ee-release')?.value || "0", 10),
+            eeRelease: ((Number(groupCode || 0) * 10 + Number(subGroupCode || 0)) >= 50 && (Number(groupCode || 0) * 10 + Number(subGroupCode || 0)) <= 59) ? parseInt(document.getElementById('req-ee-release')?.value || "0", 10) : null,
             weight: parseFloat(document.getElementById('req-weight')?.value || "0"),
             unitOfMeasure: document.getElementById('req-uom')?.value?.trim() || "Each",
             gstCode: document.getElementById('req-gst-code')?.value?.trim() || "",
@@ -856,11 +856,11 @@ async function openApproveRequestModal(req, tc) {
     // Fallback if preview value is empty/invalid
     let serialNumber = '001';
     if (previewEl.value && previewEl.value.length >= 7) {
-      serialNumber = previewEl.value.slice(4, 7);
+      serialNumber = previewEl.value.slice(5, 8);
     }
 
     const payload = {
-      bomId: parseInt(document.getElementById('appr-bomid')?.value || "0", 10),
+      bomId: Number(req.bomId || 0),
       categoryCode: catEl?.value || "",
       modelCode: modelEl?.value || "",
       groupCode,
@@ -874,7 +874,7 @@ async function openApproveRequestModal(req, tc) {
       makeBuy: parseInt(document.getElementById('appr-makebuy')?.value || "0", 10),
       releaseFlag: parseInt(document.getElementById('appr-release-flag')?.value || "0", 10),
       propNonProp: parseInt(document.getElementById('appr-prop-nonprop')?.value || "0", 10),
-      eeRelease: parseInt(document.getElementById('appr-ee-release')?.value || "0", 10),
+      eeRelease: ((Number(groupCode || 0) * 10 + Number(subGroupCode || 0)) >= 50 && (Number(groupCode || 0) * 10 + Number(subGroupCode || 0)) <= 59) ? parseInt(document.getElementById('appr-ee-release')?.value || "0", 10) : null,
       weight: parseFloat(document.getElementById('appr-weight')?.value || "0"),
       unitOfMeasure: document.getElementById('appr-uom')?.value?.trim() || "Each",
       gstCode: document.getElementById('appr-gst-code')?.value?.trim() || "",
@@ -1470,6 +1470,8 @@ function renderPartDetail(id) {
 
 // ─── Part Search (GET from server) ───────────────────────────
 async function renderPartSearch(tc) {
+  const role = (getCurrentUserRole() || '').toLowerCase();
+  const isProjectManager = role.replace(/\s/g, '') === 'projectmanager' || role.replace(/\s/g, '') === 'superadmin';
   tc.innerHTML = `
     <div class="card" style="margin-bottom:16px">
       <div class="card-body" style="padding:16px">
@@ -1596,10 +1598,10 @@ async function renderPartSearch(tc) {
         <td><span class="badge ${p.lifecycleStatus === 0 ? 'badge-draft' : p.lifecycleStatus === 1 ? 'badge-review' : 'badge-released'}">${p.lifecycleStatusLabel || '-'}</span></td>
         <td>
           <button class="btn btn-ghost btn-xs btn-info-part" data-id="${p.id}" title="View"><span class="material-icons-outlined" style="font-size:16px">info</span></button>
-          <button class="btn btn-ghost btn-xs btn-edit-part" data-id="${p.id}" title="Edit"><span class="material-icons-outlined" style="font-size:16px">edit</span></button>
+          ${isProjectManager ? `<button class="btn btn-ghost btn-xs btn-edit-part" data-id="${p.id}" title="Edit"><span class="material-icons-outlined" style="font-size:16px">edit</span></button>` : ''}
           <button class="btn btn-ghost btn-xs btn-revise-part" data-id="${p.id}" data-pn="${p.partNumber}" title="Revise Part"><span class="material-icons-outlined" style="font-size:16px">history</span></button>
           <button class="btn btn-ghost btn-xs btn-upload-part" data-pn="${p.partNumber}" title="Upload Drawing"><span class="material-icons-outlined" style="font-size:16px">upload_file</span></button>
-          <button class="btn btn-ghost btn-xs btn-delete-part" data-id="${p.id}" title="Delete"><span class="material-icons-outlined" style="font-size:16px;color:#DC2626;">delete</span></button>
+          ${role === 'superadmin' ? `<button class="btn btn-ghost btn-xs btn-delete-part" data-id="${p.id}" title="Delete"><span class="material-icons-outlined" style="font-size:16px;color:#DC2626;">delete</span></button>` : ''}
         </td>
       </tr>`).join('');
 
