@@ -1,11 +1,18 @@
   import { authFetch } from './client.js';
 import { getErrorMessageFromResponse } from './auth.js';
 
+// Cache TTL: entries older than 90 seconds are considered stale and refreshed
+const CACHE_TTL_MS = 90_000;
 let cacheParts = {};
 
 export function clearPartsCache() {
   cacheParts = {};
 }
+
+function isCacheValid(entry) {
+  return entry && (Date.now() - entry.ts < CACHE_TTL_MS);
+}
+
 
 export async function createPart(payload) {
   const response = await authFetch('/api/Parts', {
@@ -92,8 +99,9 @@ export async function deletePart(id) {
 export async function getParts(params = {}, bypassCache = false) {
   const qs = new URLSearchParams(params).toString();
   const cacheKey = qs || 'all';
-  if (cacheParts[cacheKey] && !bypassCache) {
-    return cacheParts[cacheKey];
+  // Return cached data if it exists and is within TTL
+  if (!bypassCache && isCacheValid(cacheParts[cacheKey])) {
+    return cacheParts[cacheKey].data;
   }
   const url = qs ? `/api/Parts?${qs}` : '/api/Parts';
   const response = await authFetch(url, {
@@ -104,9 +112,11 @@ export async function getParts(params = {}, bypassCache = false) {
   });
   if (!response.ok) throw new Error(`Failed to fetch parts (${response.status})`);
   const data = await response.json();
-  cacheParts[cacheKey] = data;
+  // Store with timestamp for TTL checking
+  cacheParts[cacheKey] = { data, ts: Date.now() };
   return data;
 }
+
 
 export async function getPartById(id) {
   const response = await authFetch(`/api/Parts/${id}`, {

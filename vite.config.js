@@ -11,5 +11,9 @@ export default defineConfig({
         secure: false,
       }
     }
+  },
+  build: {
+    sourcemap: false, // Disable source maps in production to prevent source code exposure
   }
 });
+

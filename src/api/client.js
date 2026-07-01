@@ -1,5 +1,6 @@
-const AUTH_API_BASE_URL_KEY = 'kg_plm_auth_api_base_url';
-const DEFAULT_API_BASE_URL = 'http://203.16.201.244:5000';
+// API Base URL — pulled from env first, then a safe fallback
+// Set VITE_API_BASE_URL in your .env file for production
+const DEFAULT_API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || 'http://203.16.201.244:5000';
 const AUTH_ACCESS_TOKEN_KEY = 'kg_plm_access_token';
 
 export function normalizeApiBaseUrl(url) {
@@ -7,56 +8,53 @@ export function normalizeApiBaseUrl(url) {
 }
 
 export function getStoredApiBaseUrl() {
-  // Ignore local storage for now to enforce the updated URL
   return normalizeApiBaseUrl(DEFAULT_API_BASE_URL) || window.location.origin;
-}
-
-export function setStoredApiBaseUrl(url) {
-  const normalized = normalizeApiBaseUrl(url);
-  if (!normalized) return;
-  localStorage.setItem(AUTH_API_BASE_URL_KEY, normalized);
 }
 
 export function getAccessToken() {
   return localStorage.getItem(AUTH_ACCESS_TOKEN_KEY) || '';
 }
 
+// ── Request Deduplication ────────────────────────────────────────────────────
+// Prevents duplicate in-flight requests for the same URL+method.
+// If two callers request the same endpoint simultaneously, only ONE network
+// request is made. Both callers receive the same resolved response clone.
+const _inflightRequests = new Map();
+
 export async function apiRequest(pathOrUrl, options = {}) {
   const apiBaseUrl = getStoredApiBaseUrl();
   const path = pathOrUrl.startsWith('/') ? pathOrUrl : `/${pathOrUrl}`;
   const url = /^https?:\/\//i.test(pathOrUrl) ? pathOrUrl : `${apiBaseUrl}${path}`;
+  const method = (options?.method || 'GET').toUpperCase();
+
   const requestOptions = { ...(options || {}) };
-  requestOptions.headers = {
-    ...(options?.headers || {})
-  };
+  requestOptions.headers = { ...(options?.headers || {}) };
 
   // Strict backends reject GET requests with Content-Type
-  if ((requestOptions.method || 'GET').toUpperCase() === 'GET') {
-    if (requestOptions.headers['Content-Type']) {
-      delete requestOptions.headers['Content-Type'];
-    }
+  if (method === 'GET' && requestOptions.headers['Content-Type']) {
+    delete requestOptions.headers['Content-Type'];
   }
 
-  // Mock Backend RBAC Validation
-  try {
-    const user = JSON.parse(localStorage.getItem('kg_plm_session_user'));
-    if (user && (user.role === 'Designer' || user.role === '6')) {
-      const restrictedEndpoints = ['/api/members', '/api/teams', '/api/auth/roles', '/api/admin'];
-      const method = (requestOptions.method || 'GET').toUpperCase();
-      if (['POST', 'PUT', 'DELETE'].includes(method)) {
-        const isRestricted = restrictedEndpoints.some(ep => path.toLowerCase().startsWith(ep));
-        if (isRestricted) {
-          console.warn(`[RBAC] Blocked restricted mutation: ${method} ${path} for Designer`);
-          return new Response(JSON.stringify({ message: 'Access Denied' }), {
-            status: 403,
-            statusText: 'Forbidden',
-            headers: { 'Content-Type': 'application/json' }
-          });
-        }
-      }
+  // Only deduplicate safe, idempotent GET requests
+  if (method === 'GET') {
+    const dedupKey = url;
+    if (_inflightRequests.has(dedupKey)) {
+      // Return a cloned response so each caller can independently read the body
+      const shared = await _inflightRequests.get(dedupKey);
+      return shared.clone();
     }
-  } catch (e) {
-    // Ignore RBAC mock errors
+
+    const fetchPromise = fetch(url, requestOptions).then(res => {
+      _inflightRequests.delete(dedupKey);
+      return res;
+    }).catch(err => {
+      _inflightRequests.delete(dedupKey);
+      throw err;
+    });
+
+    _inflightRequests.set(dedupKey, fetchPromise);
+    const result = await fetchPromise;
+    return result;
   }
 
   return fetch(url, requestOptions);

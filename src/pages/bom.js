@@ -341,7 +341,7 @@ async function renderBomCloning(tc) {
     try {
       const partsResponse = await getBomParts(sourceId);
       const partsToClone = Array.isArray(partsResponse) ? partsResponse : (partsResponse?.items || []);
-      
+
       if (partsToClone.length === 0) {
         showToast('No parts found in the source BOM.', 'info');
       } else {
@@ -365,7 +365,7 @@ async function renderBomCloning(tc) {
           showToast(`Cloned ${successCount} parts, but ${failCount} failed.`, 'warning');
         }
       }
-      
+
       tc.querySelector('#clone-source-id').value = '';
       tc.querySelector('#clone-target-id').value = '';
     } catch (err) {
@@ -944,9 +944,7 @@ export async function openCreateBomModal(prefill = {}) {
       ` : `
       <div class="form-group">
         <label class="form-label">Model Number <span style="color:#DC2626">*</span></label>
-        <select class="form-select" id="bom-model-code">
-          ${optionsHtml(MODEL_NUMBERS, 'code', 'label')}
-        </select>
+        <input type="text" class="form-input" id="bom-model-code" placeholder="Enter Model Number" />
       </div>
       `}
       <div class="form-group">
@@ -1155,7 +1153,7 @@ export async function openCreateBomModal(prefill = {}) {
     renderPartDetail(bomNumber);
 
     document.querySelector('.modal-overlay')?.remove();
-    
+
     // Open the Clone Prompt modal
     if (backendId && categoryCode) {
       setTimeout(() => openClonePromptModal(backendId, categoryCode), 100);
@@ -1176,7 +1174,7 @@ async function openClonePromptModal(newBomId, categoryCode) {
     console.error('Failed to load BOMs for cloning', err);
   }
 
-  const optionsHtml = boms.length 
+  const optionsHtml = boms.length
     ? boms.map(b => '<option value="' + b.id + '">' + (b.bomNumber || 'Unknown') + ' - ' + (b.name || 'Unnamed') + '</option>').join('')
     : '<option value="">No BOMs found</option>';
 
@@ -1198,7 +1196,7 @@ async function openClonePromptModal(newBomId, categoryCode) {
          </div>
        </div>
      </div>`,
-     `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Skip / Cancel</button>
+    `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Skip / Cancel</button>
       <button class="btn btn-primary" id="btn-submit-clone-prompt" disabled>Clone Parts</button>`
   );
 
@@ -1230,7 +1228,7 @@ async function openClonePromptModal(newBomId, categoryCode) {
       try {
         const partsResponse = await getBomParts(sourceId);
         const partsToClone = Array.isArray(partsResponse) ? partsResponse : (partsResponse?.items || []);
-        
+
         if (partsToClone.length === 0) {
           showToast('No parts found in the source BOM.', 'info');
           document.querySelector('.modal-overlay')?.remove();
@@ -1251,7 +1249,7 @@ async function openClonePromptModal(newBomId, categoryCode) {
             }
           }
         }
-        
+
         if (failCount === 0) {
           showToast(`Successfully cloned ${successCount} parts!`, 'success');
         } else {
@@ -2263,9 +2261,7 @@ async function renderCreatePart(tc) {
           </div>
           <div class="form-group">
             <label class="form-label">Model Number <span style="color:#DC2626">*</span></label>
-            <select class="form-select" id="cp-model">
-              ${optionsHtml(MODEL_NUMBERS, 'code', 'label')}
-            </select>
+            <input type="text" class="form-input" id="cp-model" placeholder="Enter Model Number" />
           </div>
           <div class="form-group">
             <label class="form-label">Group Number <span style="color:#DC2626">*</span></label>

@@ -66,7 +66,7 @@ export function renderModels(container) {
         };
 
         try {
-          console.log('[ADD MODEL] Sending payload:', JSON.stringify(payload, null, 2));
+
           await createVehicleModel(payload);
           document.querySelector('.modal-overlay')?.remove();
           showToast(`Model "${name}" successfully registered!`, 'success');

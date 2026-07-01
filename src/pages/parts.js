@@ -290,41 +290,202 @@ export function renderParts(container) {
   // });
 
   if (role === 'designer') {
-    container.querySelector('#btn-request-part')?.addEventListener('click', () => {
+    container.querySelector('#btn-request-part')?.addEventListener('click', async () => {
+      let groupOpts = '';
+      try {
+        const res = await authFetch('/api/Lookups/part-groups');
+        if (res.ok) {
+          const allGroups = await res.json();
+          const standardGroups = allGroups.filter(g => !g.isHardwareGroup);
+          groupOpts = standardGroups.map(g =>
+            `<option value="${g.groupCode}:${g.subGroupCode}">${g.groupCode}${g.subGroupCode} - ${g.name}</option>`
+          ).join('');
+        }
+      } catch (err) {
+        console.error('Error fetching group numbers:', err);
+      }
+
       showModal(
         'Request New Part',
-        `<div class="form-group">
-           <label class="form-label">BOM ID <span style="color:#DC2626">*</span></label>
-           <input class="form-input" type="number" id="req-part-bomid" placeholder="Enter BOM ID for reference" />
-         </div>
-         <div class="form-group">
-           <label class="form-label">Name <span style="color:#DC2626">*</span></label>
-           <input class="form-input" id="req-part-name" placeholder="Enter part name" />
-         </div>
-         <div class="form-group">
-           <label class="form-label">Description <span style="color:#DC2626">*</span></label>
-           <input class="form-input" id="req-part-desc" placeholder="Enter part description" />
-         </div>`,
+        `<div class="detail-grid">
+          <div class="form-group">
+            <label class="form-label">Product Category <span style="color:#DC2626">*</span></label>
+            <select class="form-select" id="req-cat-code">${optionsHtml(PRODUCT_CATEGORIES, 'code', 'label')}</select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Model Number <span style="color:#DC2626">*</span></label>
+            <input type="text" class="form-input" id="req-model-code" placeholder="Enter Model Number" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Group Number <span style="color:#DC2626">*</span></label>
+            <select class="form-select" id="req-group-number">${groupOpts}</select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Machining / Assembly Status <span style="color:#DC2626">*</span></label>
+            <select class="form-select" id="req-machining-status">${optionsHtml(MACHINING_STATUS, 'code', 'label')}</select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Revision Letter <span style="color:#DC2626">*</span></label>
+            <select class="form-select" id="req-revision-letter">${REVISION_LETTERS.map(l => `<option value="${l}">${l}</option>`).join('')}</select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Development Status <span style="color:#DC2626">*</span></label>
+            <select class="form-select" id="req-dev-status">${optionsHtml(DEV_STATUS, 'code', 'label')}</select>
+          </div>
+          <div class="form-group" style="grid-column:1 / -1">
+            <label class="form-label">Part Number Preview</label>
+            <input class="form-input" id="req-number-preview" readonly style="font-family:var(--font-mono);font-weight:700;letter-spacing:1px;background:var(--bg-muted)" />
+          </div>
+          <div class="form-group" style="grid-column:1 / -1">
+            <label class="form-label">Name <span style="color:#DC2626">*</span></label>
+            <input class="form-input" id="req-part-name" placeholder="Enter part name" />
+          </div>
+          <div class="form-group" style="grid-column:1 / -1">
+            <label class="form-label">Description <span style="color:#DC2626">*</span></label>
+            <input class="form-input" id="req-part-desc" placeholder="Enter part description" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Make / Buy</label>
+            <select class="form-select" id="req-makebuy">
+              <option value="0">Component</option>
+              <option value="1">Assembly</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Weight (kg)</label>
+            <input class="form-input" type="number" id="req-weight" value="0" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Unit of Measure</label>
+            <input class="form-input" id="req-uom" value="Each" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Quantity</label>
+            <input class="form-input" type="number" id="req-qty" value="1" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">BOM ID <span style="color:#DC2626">*</span></label>
+            <input class="form-input" type="number" id="req-part-bomid" value="0" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Release Flag</label>
+            <select class="form-select" id="req-release-flag">
+              <option value="0">0 - Not Released</option>
+              <option value="1">1 - Released</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Prop / Non-Prop</label>
+            <select class="form-select" id="req-prop-nonprop">
+              <option value="0">0 - Non-Proprietary</option>
+              <option value="1">1 - Proprietary</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">EE Release</label>
+            <select class="form-select" id="req-ee-release">
+              <option value="0">0 - No</option>
+              <option value="1">1 - Yes</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">GST Code</label>
+            <input class="form-input" type="text" id="req-gst-code" value="" placeholder="Enter GST Code" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Homologation Status</label>
+            <select class="form-select" id="req-homologation">
+              <option value="0">No</option>
+              <option value="1">Yes</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Assigned Designer User ID</label>
+            <input class="form-input" type="number" id="req-assigned-user" value="0" placeholder="0 if none" />
+          </div>
+        </div>`,
         `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
          <button class="btn btn-primary" id="save-request-part">Submit Request</button>`
       );
 
+      const catEl = document.getElementById('req-cat-code');
+      const modelEl = document.getElementById('req-model-code');
+      const groupEl = document.getElementById('req-group-number');
+      const machEl = document.getElementById('req-machining-status');
+      const revEl = document.getElementById('req-revision-letter');
+      const devEl = document.getElementById('req-dev-status');
+      const previewEl = document.getElementById('req-number-preview');
+
+      const syncPreview = async () => {
+        if (!previewEl) return;
+        const [gc, sc] = String(groupEl?.value || '').split(':');
+        const serial = await getNextSerial({
+          categoryCode: catEl?.value || '',
+          modelCode: modelEl?.value || '',
+          groupCode: gc || '',
+          subCode: sc || '',
+        });
+        previewEl.value = buildPartNumber({
+          categoryCode: catEl?.value || '',
+          modelCode: modelEl?.value || '',
+          groupCode: gc || '',
+          subCode: sc || '',
+          serial,
+          machiningCode: machEl?.value || '0',
+          revisionLetter: revEl?.value || 'A',
+          devStatusCode: devEl?.value || 'X',
+        });
+      };
+
+      [catEl, modelEl, groupEl, machEl, revEl, devEl].forEach(el => el?.addEventListener('change', syncPreview));
+      syncPreview();
+
       setTimeout(() => {
         document.getElementById('save-request-part')?.addEventListener('click', async () => {
-          const bomIdStr = document.getElementById('req-part-bomid').value.trim();
-          const name = document.getElementById('req-part-name').value.trim();
-          const description = document.getElementById('req-part-desc').value.trim();
+          const bomIdStr = document.getElementById('req-part-bomid')?.value.trim();
+          const name = document.getElementById('req-part-name')?.value.trim();
+          const description = document.getElementById('req-part-desc')?.value.trim();
 
           if (!bomIdStr || !name || !description) return showToast('Please fill all mandatory fields.', 'error');
-
           const bomId = parseInt(bomIdStr, 10);
           if (isNaN(bomId)) return showToast('BOM ID must be a valid number.', 'error');
+
+          const [groupCode, subGroupCode] = String(groupEl?.value || '').split(':');
+
+          let serialNumber = '001';
+          if (previewEl.value && previewEl.value.length >= 7) {
+            serialNumber = previewEl.value.slice(4, 7);
+          }
+
+          const payload = {
+            bomId,
+            categoryCode: catEl?.value || "",
+            modelCode: modelEl?.value || "",
+            groupCode,
+            subGroupCode,
+            serialNumber,
+            machiningCode: machEl?.value?.trim() || "0",
+            revisionLetter: revEl?.value?.trim() || "A",
+            devStatusCode: devEl?.value?.trim() || "X",
+            name,
+            description,
+            makeBuy: parseInt(document.getElementById('req-makebuy')?.value || "0", 10),
+            releaseFlag: parseInt(document.getElementById('req-release-flag')?.value || "0", 10),
+            propNonProp: parseInt(document.getElementById('req-prop-nonprop')?.value || "0", 10),
+            eeRelease: parseInt(document.getElementById('req-ee-release')?.value || "0", 10),
+            weight: parseFloat(document.getElementById('req-weight')?.value || "0"),
+            unitOfMeasure: document.getElementById('req-uom')?.value?.trim() || "Each",
+            gstCode: document.getElementById('req-gst-code')?.value?.trim() || "",
+            quantity: parseInt(document.getElementById('req-qty')?.value || "1", 10),
+            homologationStatus: Number(document.getElementById('req-homologation')?.value || 0),
+            assignedToDesignerUserId: parseInt(document.getElementById('req-assigned-user')?.value || "0", 10)
+          };
 
           try {
             const res = await authFetch('/api/PartRequests', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ bomId, name, description })
+              body: JSON.stringify(payload)
             });
             if (res.ok) {
               showToast('Part request submitted successfully.', 'success');
@@ -333,7 +494,7 @@ export function renderParts(container) {
               let errorText = '';
               try { errorText = await res.text(); } catch (e) { }
               console.error('Server error response:', errorText);
-              showToast('Failed to submit request. Server responded with: ' + res.status + ' ' + (errorText.substring(0, 50) || res.statusText), 'error');
+              showToast('Failed to submit request.', 'error');
             }
           } catch (e) {
             showToast('Error submitting request: ' + e.message, 'error');
@@ -477,19 +638,54 @@ async function renderPendingParts(tc) {
     });
 
     tc.querySelectorAll('.btn-reject-part').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
+      btn.addEventListener('click', (e) => {
         const id = e.currentTarget.dataset.id;
-        try {
-          const res = await authFetch(`/api/PartRequests/${id}/reject`, { method: 'POST' });
-          if (res.ok) {
-            showToast('Part request rejected successfully.', 'success');
-            renderPendingParts(tc);
-          } else {
-            showToast('Failed to reject part request.', 'error');
+        const overlay = showModal('Reject Part Request', `
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label class="form-label">Reason for Rejection <span style="color:#DC2626">*</span></label>
+            <textarea class="form-input" id="reject-reason" rows="3" placeholder="Enter reason for rejection..."></textarea>
+          </div>
+        `, `
+          <button class="btn btn-outline" id="btn-cancel-reject">Cancel</button>
+          <button class="btn btn-danger" id="btn-confirm-reject">Reject Request</button>
+        `);
+
+        overlay.querySelector('#btn-cancel-reject').addEventListener('click', () => {
+          overlay.remove();
+        });
+
+        overlay.querySelector('#btn-confirm-reject').addEventListener('click', async () => {
+          const reason = overlay.querySelector('#reject-reason').value.trim();
+          if (!reason) {
+            showToast('Please enter a reason for rejection.', 'error');
+            return;
           }
-        } catch (err) {
-          showToast('Error rejecting: ' + err.message, 'error');
-        }
+
+          const confirmBtn = overlay.querySelector('#btn-confirm-reject');
+          confirmBtn.disabled = true;
+          confirmBtn.textContent = 'Rejecting...';
+
+          try {
+            const res = await authFetch('/api/PartRequests/' + id + '/reject', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ reason })
+            });
+            if (res.ok) {
+              showToast('Part request rejected successfully.', 'success');
+              overlay.remove();
+              renderPendingParts(tc);
+            } else {
+              showToast('Failed to reject part request.', 'error');
+              confirmBtn.disabled = false;
+              confirmBtn.textContent = 'Reject Request';
+            }
+          } catch (err) {
+            showToast('Error rejecting: ' + err.message, 'error');
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Reject Request';
+          }
+        });
       });
     });
   } catch (err) {
@@ -524,9 +720,7 @@ async function openApproveRequestModal(req, tc) {
       </div>
       <div class="form-group">
         <label class="form-label">Model Number <span style="color:#DC2626">*</span></label>
-        <select class="form-select" id="appr-model-code">
-          ${optionsHtml(MODEL_NUMBERS, 'code', 'label')}
-        </select>
+        <input type="text" class="form-input" id="appr-model-code" placeholder="Enter Model Number" />
       </div>
       <div class="form-group">
         <label class="form-label">Group Number <span style="color:#DC2626">*</span></label>
@@ -581,6 +775,44 @@ async function openApproveRequestModal(req, tc) {
         <label class="form-label">Quantity</label>
         <input class="form-input" type="number" id="appr-qty" value="1" />
       </div>
+      <div class="form-group">
+        <label class="form-label">BOM ID</label>
+        <input class="form-input" type="number" id="appr-bomid" value="0" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Release Flag</label>
+        <select class="form-select" id="appr-release-flag">
+          <option value="0">E-Release</option>
+          <option value="1">FS-Release</option>
+          <option value="2">Proto</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Prop / Non-Prop</label>
+        <select class="form-select" id="appr-prop-nonprop">
+          <option value="0">Proprietary</option>
+          <option value="1">Non-Proprietary</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">EE Release</label>
+        <select class="form-select" id="appr-ee-release">
+          <option value="0">Sample</option>
+          <option value="1">Proto</option>
+          <option value="2">Production</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">GST Code</label>
+        <input class="form-input" type="text" id="appr-gst-code" value="" placeholder="Enter GST Code" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Homologation Status</label>
+        <select class="form-select" id="appr-homologation">
+          <option value="0">No</option>
+          <option value="1">Yes</option>
+        </select>
+      </div>
     </div>`,
     `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
      <button class="btn btn-primary" id="save-appr-part">Approve & Fulfill</button>`
@@ -628,23 +860,26 @@ async function openApproveRequestModal(req, tc) {
     }
 
     const payload = {
+      bomId: parseInt(document.getElementById('appr-bomid')?.value || "0", 10),
+      categoryCode: catEl?.value || "",
+      modelCode: modelEl?.value || "",
       groupCode,
       subGroupCode,
       serialNumber,
       machiningCode: machEl?.value?.trim() || "0",
       revisionLetter: revEl?.value?.trim() || "A",
       devStatusCode: devEl?.value?.trim() || "X",
-      revisionDigits: "00",
       name: document.getElementById('appr-name')?.value?.trim() || req.name,
       description: document.getElementById('appr-desc')?.value?.trim() || req.description,
       makeBuy: parseInt(document.getElementById('appr-makebuy')?.value || "0", 10),
-      releaseFlag: 0,
-      eeRelease: 0,
+      releaseFlag: parseInt(document.getElementById('appr-release-flag')?.value || "0", 10),
+      propNonProp: parseInt(document.getElementById('appr-prop-nonprop')?.value || "0", 10),
+      eeRelease: parseInt(document.getElementById('appr-ee-release')?.value || "0", 10),
       weight: parseFloat(document.getElementById('appr-weight')?.value || "0"),
       unitOfMeasure: document.getElementById('appr-uom')?.value?.trim() || "Each",
-      gstCode: "",
+      gstCode: document.getElementById('appr-gst-code')?.value?.trim() || "",
       quantity: parseInt(document.getElementById('appr-qty')?.value || "1", 10),
-      homologationStatus: 0
+      homologationStatus: Number(document.getElementById('appr-homologation')?.value || 0)
     };
 
     try {
@@ -694,9 +929,7 @@ async function openCreateBomModal() {
       </div>
       <div class="form-group">
         <label class="form-label">Model Number <span style="color:#DC2626">*</span></label>
-        <select class="form-select" id="bom-model-code">
-          ${optionsHtml(MODEL_NUMBERS, 'code', 'label')}
-        </select>
+        <input type="text" class="form-input" id="bom-model-code" placeholder="Enter Model Number" />
       </div>
       <div class="form-group">
         <label class="form-label">Group Number <span style="color:#DC2626">*</span></label>
@@ -1358,7 +1591,7 @@ async function renderPartSearch(tc) {
         <td>${p.name || '-'}</td>
         <td><span class="tag tag-gray">${p.groupName || '-'}</span></td>
         <td>${p.machiningName || '-'}</td>
-        <td>${p.revisionLetter || ''}${p.revisionDigits || ''}</td>
+        <td>${p.revisionLetter || ''}</td>
         <td><span class="tag tag-amber">${p.devStatusCode || '-'}</span></td>
         <td><span class="badge ${p.lifecycleStatus === 0 ? 'badge-draft' : p.lifecycleStatus === 1 ? 'badge-review' : 'badge-released'}">${p.lifecycleStatusLabel || '-'}</span></td>
         <td>
@@ -1532,7 +1765,7 @@ function openApiPartInfoModal(p) {
       <div class="detail-field"><div class="detail-label">Name</div><div class="detail-value">${p.name || '-'}</div></div>
       <div class="detail-field"><div class="detail-label">Group</div><div class="detail-value">${p.groupName || '-'}</div></div>
       <div class="detail-field"><div class="detail-label">Lifecycle</div><div class="detail-value"><span class="badge ${p.lifecycleStatus === 0 ? 'badge-draft' : p.lifecycleStatus === 1 ? 'badge-review' : 'badge-released'}">${p.lifecycleStatusLabel || '-'}</span></div></div>
-      <div class="detail-field"><div class="detail-label">Revision</div><div class="detail-value">${p.revisionLetter || ''}${p.revisionDigits || ''}</div></div>
+      <div class="detail-field"><div class="detail-label">Revision</div><div class="detail-value">${p.revisionLetter || ''}</div></div>
       <div class="detail-field"><div class="detail-label">Dev Status</div><div class="detail-value"><span class="tag tag-amber">${p.devStatusCode || '-'}</span></div></div>
       <div class="detail-field"><div class="detail-label">Machining</div><div class="detail-value">${p.machiningName || '-'}</div></div>
       <div class="detail-field"><div class="detail-label">Weight</div><div class="detail-value">${p.weight ?? p.netWeight ?? '0'} kg</div></div>
@@ -1597,7 +1830,7 @@ function openRevisePartModal(p, onRevised) {
       </div>
       <div class="detail-field">
         <div class="detail-label">Current Revision</div>
-        <div class="detail-value">${p.revisionLetter || ''}${p.revisionDigits || ''}</div>
+        <div class="detail-value">${p.revisionLetter || ''}</div>
       </div>
       <div class="detail-field">
         <div class="detail-label">Current Dev Status</div>
@@ -1612,10 +1845,6 @@ function openRevisePartModal(p, onRevised) {
           <option value="Z">Z - Drawing for Mass Production</option>
           <option value="S">S - For Spares Only</option>
         </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">New Revision Digits</label>
-        <input class="form-input" id="revise-rev-digits" placeholder="e.g. 01 (leave blank to auto-increment)" />
       </div>
       <div class="form-group" style="grid-column:1/-1">
         <label class="form-label">Reason</label>
@@ -1636,7 +1865,6 @@ function openRevisePartModal(p, onRevised) {
   setTimeout(() => {
     document.getElementById('revise-confirm')?.addEventListener('click', async () => {
       const devCode = document.getElementById('revise-dev-status')?.value?.trim() || null;
-      const revDigits = document.getElementById('revise-rev-digits')?.value?.trim() || null;
       const reason = document.getElementById('revise-reason')?.value?.trim() || null;
       const fileInput = document.getElementById('revise-drawing-file');
 
@@ -1654,7 +1882,6 @@ function openRevisePartModal(p, onRevised) {
       const formData = new FormData();
       formData.append('PartId', p.id);
       if (devCode) formData.append('NewDevStatusCode', devCode);
-      if (revDigits) formData.append('NewRevisionDigits', revDigits);
       if (reason) formData.append('Reason', reason);
       formData.append('drawingFile', file);
 
@@ -1772,9 +1999,7 @@ async function renderCreatePart(tc) {
           </div>
           <div class="form-group">
             <label class="form-label">Model Number <span style="color:#DC2626">*</span></label>
-            <select class="form-select" id="cp-model">
-              ${optionsHtml(MODEL_NUMBERS, 'code', 'label')}
-            </select>
+            <input type="text" class="form-input" id="cp-model" placeholder="Enter Model Number" />
           </div>
           <div class="form-group">
             <label class="form-label">Group Number <span style="color:#DC2626">*</span></label>
@@ -1845,6 +2070,13 @@ async function renderCreatePart(tc) {
               <option value="2">Proto</option>
             </select>
           </div>
+          <div class="form-group">
+            <label class="form-label">Prop / Non-Prop</label>
+            <select class="form-select" id="cp-prop-nonprop">
+              <option value="0">Proprietary</option>
+              <option value="1">Non-Proprietary</option>
+            </select>
+          </div>
           <div class="form-group" id="cp-ee-release-group" style="display:none">
             <label class="form-label">EE Release</label>
             <select class="form-select" id="cp-ee-release">
@@ -1854,8 +2086,11 @@ async function renderCreatePart(tc) {
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Homologation Required</label>
-            <select class="form-select" id="cp-homo"><option value="0">No</option><option value="1">Yes</option></select>
+            <label class="form-label">Homologation Status</label>
+            <select class="form-select" id="cp-homo">
+              <option value="0">No</option>
+              <option value="1">Yes</option>
+            </select>
           </div>
           <div class="form-group">
             <label class="form-label">Assigned Designer <span style="color:#DC2626">*</span></label>
@@ -1914,12 +2149,12 @@ async function renderCreatePart(tc) {
     .forEach(el => el.addEventListener('change', updatePN));
   updatePN();
 
-  // Show EE Release + lock Release Flag to EC when group is in range 51–59
+  // Show EE Release + lock Release Flag to EC when group is in range 50–59
   const toggleEeRelease = () => {
     const groupVal = tc.querySelector('#cp-group')?.value || '';
     const [gc, sc] = groupVal.split(':');
     const combined = Number(gc || 0) * 10 + Number(sc || 0);
-    const show = combined >= 51 && combined <= 59;
+    const show = combined >= 50 && combined <= 59;
     // EE Release field
     const eeGroup = tc.querySelector('#cp-ee-release-group');
     if (eeGroup) eeGroup.style.display = show ? 'block' : 'none';
@@ -1931,7 +2166,7 @@ async function renderCreatePart(tc) {
         rfSelect.disabled = true;
         rfSelect.style.opacity = '0.6';
         rfSelect.style.cursor = 'not-allowed';
-        rfSelect.title = 'E-Release is required for group numbers 51–59';
+        rfSelect.title = 'E-Release is required for group numbers 50–59';
       } else {
         rfSelect.disabled = false;
         rfSelect.style.opacity = '';
@@ -2003,12 +2238,12 @@ async function renderCreatePart(tc) {
       machiningCode,
       revisionLetter,
       devStatusCode,
-      revisionDigits: "00",
       name,
       description: tc.querySelector('#cp-desc')?.value?.trim() || '',
       makeBuy: Number(tc.querySelector('#cp-makebuy')?.value || 0),
       releaseFlag: Number(releaseFlagStr),
-      eeRelease: Number(tc.querySelector('#cp-ee-release')?.value || 0),
+      propNonProp: Number(tc.querySelector('#cp-prop-nonprop')?.value || 0),
+      eeRelease: ((Number(groupCode || 0) * 10 + Number(subGroupCode || 0)) >= 50 && (Number(groupCode || 0) * 10 + Number(subGroupCode || 0)) <= 59) ? Number(tc.querySelector('#cp-ee-release')?.value || 0) : null,
       weight: Number(tc.querySelector('#cp-weight')?.value || 0),
       unitOfMeasure: unitOfMeasure || 'Each',
       gstCode: tc.querySelector('#cp-gstcode')?.value?.trim() || '',

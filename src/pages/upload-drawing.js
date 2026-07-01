@@ -179,6 +179,22 @@ export function renderUploadDrawing(container, prefillPartNumber = '') {
       return;
     }
 
+    // File type and size validation
+    const ALLOWED_EXTENSIONS = ['.pdf', '.png', '.jpg', '.jpeg', '.dwg', '.step', '.stp', '.dxf'];
+    const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
+    if (fileInput.files?.length) {
+      const file = fileInput.files[0];
+      const ext = '.' + file.name.split('.').pop().toLowerCase();
+      if (!ALLOWED_EXTENSIONS.includes(ext)) {
+        showToast(`Invalid file type. Allowed: ${ALLOWED_EXTENSIONS.join(', ')}`, 'error');
+        return;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        showToast('File size must be under 25 MB.', 'error');
+        return;
+      }
+    }
+
     const formData = new FormData();
     formData.append('DrawingNumber', drawingNumber);
     formData.append('Name', name);
@@ -201,8 +217,7 @@ export function renderUploadDrawing(container, prefillPartNumber = '') {
         btn.disabled = false;
       }, 2500);
     } catch (err) {
-      console.error(err);
-      showToast(err.message || 'Upload failed.', 'error');
+      showToast(err.message || 'Upload failed. Please try again.', 'error');
       btn.innerHTML = '<span class="material-icons-outlined" style="font-size:16px;">upload_file</span>Upload Drawing';
       btn.disabled = false;
     }

@@ -203,7 +203,7 @@ export async function linkPartToBOM(bomId, partId) {
   // so lowercase partId is accepted. Sending a single clean key avoids
   // duplicate-key parsing errors on stricter deserializers.
   const body = JSON.stringify({ partId: numericPartId });
-  console.log(`[linkPartToBOM] POST /api/BOM/${bomId}/link-part`, { partId: numericPartId });
+
 
   let response = await authFetch(`/api/BOM/${bomId}/link-part`, {
     method: 'POST',
@@ -238,7 +238,7 @@ export async function unlinkPartFromBOM(bomId, partId) {
     throw new Error(`Invalid bomId (${bomId}) or partId (${partId}) for unlink-part request.`);
   }
   const body = JSON.stringify({ partId: numericPartId });
-  console.log(`[unlinkPartFromBOM] POST /api/BOM/${bomId}/unlink-part`, { partId: numericPartId });
+
 
   let response = await authFetch(`/api/BOM/${bomId}/unlink-part`, {
     method: 'POST',

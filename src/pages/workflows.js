@@ -461,7 +461,7 @@ async function renderMyTasks(tc) {
 
       try {
         const itemType = e.target.dataset.type;
-        const res = itemType === 'BOM' 
+        const res = itemType === 'BOM'
           ? await authFetch('/api/BOM/' + entityId + '/approval-status')
           : await authFetch('/api/Parts/' + entityId + '/current-approval-stage');
 
@@ -545,7 +545,7 @@ async function renderMyTasks(tc) {
                       const res = await authFetch('/api/Parts/project-managers');
                       if (res.ok) {
                         const pms = await res.json();
-                        pmSelect.innerHTML = '<option value="">Select a PM...</option>' + 
+                        pmSelect.innerHTML = '<option value="">Select a PM...</option>' +
                           pms.map(pm => `<option value="${pm.id}">${pm.fullName}</option>`).join('');
                       } else {
                         pmSelect.innerHTML = '<option value="">Failed to load PMs</option>';
@@ -563,32 +563,32 @@ async function renderMyTasks(tc) {
             const protoStudySelect = document.getElementById('stage-proto-study-select');
             const protoApprovalSelect = document.getElementById('stage-proto-approval-select');
             if (protoStudySelect && protoApprovalSelect) {
-               try {
-                 const res = await authFetch('/api/Members');
-                 if (res.ok) {
-                   const membersData = await res.json();
-                   const membersList = Array.isArray(membersData) ? membersData : (Object.keys(membersData).filter(k => Array.isArray(membersData[k])).length > 0 ? membersData[Object.keys(membersData).filter(k => Array.isArray(membersData[k]))[0]] : [membersData]);
-                   const optionsHtml = '<option value="0">Select User...</option>' + membersList.map(m => `<option value="${m.id || m.userId || 0}">${m.fullName || m.name || 'Unknown'}</option>`).join('');
-                   protoStudySelect.innerHTML = optionsHtml;
-                   protoApprovalSelect.innerHTML = optionsHtml;
-                 }
-               } catch (err) {
-                 console.error('Failed to load members for proto users', err);
-               }
+              try {
+                const res = await authFetch('/api/Members');
+                if (res.ok) {
+                  const membersData = await res.json();
+                  const membersList = Array.isArray(membersData) ? membersData : (Object.keys(membersData).filter(k => Array.isArray(membersData[k])).length > 0 ? membersData[Object.keys(membersData).filter(k => Array.isArray(membersData[k]))[0]] : [membersData]);
+                  const optionsHtml = '<option value="0">Select User...</option>' + membersList.map(m => `<option value="${m.id || m.userId || 0}">${m.fullName || m.name || 'Unknown'}</option>`).join('');
+                  protoStudySelect.innerHTML = optionsHtml;
+                  protoApprovalSelect.innerHTML = optionsHtml;
+                }
+              } catch (err) {
+                console.error('Failed to load members for proto users', err);
+              }
             }
 
             overlay.querySelector('#approve-stage-btn')?.addEventListener('click', async (btnEv) => {
               const comments = overlay.querySelector('#stage-comments')?.value?.trim() || '';
-              
+
               const cb = document.getElementById('stage-revert-pm-checkbox');
               const revertThroughPM = cb ? cb.checked : false;
-              
+
               const sel = document.getElementById('stage-pm-dropdown');
               const selectedPMId = sel && sel.value ? parseInt(sel.value, 10) : 0;
-              
+
               if (revertThroughPM && (!selectedPMId || isNaN(selectedPMId))) {
-                 showToast('Please select a Project Manager before proceeding', 'warning');
-                 return;
+                showToast('Please select a Project Manager before proceeding', 'warning');
+                return;
               }
 
               const pStudy = document.getElementById('stage-proto-study-select');
@@ -637,16 +637,16 @@ async function renderMyTasks(tc) {
             overlay.querySelector('#reject-stage-btn')?.addEventListener('click', async (btnEv) => {
               const comments = overlay.querySelector('#stage-comments')?.value?.trim() || '';
               const revertToDesigner = overlay.querySelector('#stage-revert-designer')?.checked || false;
-              
+
               const cb = document.getElementById('stage-revert-pm-checkbox');
               const revertThroughPM = cb ? cb.checked : false;
-              
+
               const sel = document.getElementById('stage-pm-dropdown');
               const selectedPMId = sel && sel.value ? parseInt(sel.value, 10) : 0;
-              
+
               if (revertThroughPM && (!selectedPMId || isNaN(selectedPMId))) {
-                 showToast('Please select a Project Manager before proceeding', 'warning');
-                 return;
+                showToast('Please select a Project Manager before proceeding', 'warning');
+                return;
               }
 
               const pStudy = document.getElementById('stage-proto-study-select');
@@ -694,7 +694,7 @@ async function renderMyTasks(tc) {
 
             overlay.querySelector('#resubmit-stage-btn')?.addEventListener('click', async (btnEv) => {
               const comments = overlay.querySelector('#stage-comments')?.value?.trim() || '';
-              
+
               const btn = btnEv.currentTarget;
               btn.disabled = true;
               btn.textContent = 'Resubmitting...';
@@ -707,13 +707,13 @@ async function renderMyTasks(tc) {
                   protoStudyUserId: 0,
                   protoApprovalUserId: 0
                 };
-                
+
                 const res = await authFetch('/api/Parts/' + entityId + '/resubmit-part-number', {
                   method: 'POST',
                   body: JSON.stringify(payload),
                   headers: { 'Content-Type': 'application/json' }
                 });
-                
+
                 if (res.ok) {
                   showToast('Resubmitted successfully', 'success');
                   overlay.remove();
@@ -819,7 +819,7 @@ async function renderInProgress(tc) {
 
       try {
         const itemType = e.target.dataset.type;
-        const res = itemType === 'BOM' 
+        const res = itemType === 'BOM'
           ? await authFetch('/api/BOM/' + entityId + '/approval-status')
           : await authFetch('/api/Parts/' + entityId + '/current-approval-stage');
 
@@ -827,7 +827,7 @@ async function renderInProgress(tc) {
           const data = await res.json();
           const resolvedType = data.approvalType || itemType;
           const isApprovable = resolvedType === 'PartNumber' || resolvedType?.toLowerCase() === 'drawing' || resolvedType === 'BOM';
-          
+
           const currentUserRole = (getCurrentUserRole() || '').toLowerCase().replace(/\s/g, '');
           const isDesignerRole = currentUserRole === 'designer';
           const isDesignerRejected = isDesignerRole && ((data.status || '').toLowerCase() === 'rejected' || (data.result || '').toLowerCase() === 'rejected' || (data.currentApprovalStage || '').toLowerCase().includes('reject'));
@@ -904,7 +904,7 @@ async function renderInProgress(tc) {
                       const res = await authFetch('/api/Parts/project-managers');
                       if (res.ok) {
                         const pms = await res.json();
-                        pmSelect.innerHTML = '<option value="">Select a PM...</option>' + 
+                        pmSelect.innerHTML = '<option value="">Select a PM...</option>' +
                           pms.map(pm => `<option value="${pm.id}">${pm.fullName}</option>`).join('');
                       } else {
                         pmSelect.innerHTML = '<option value="">Failed to load PMs</option>';
@@ -922,32 +922,32 @@ async function renderInProgress(tc) {
             const protoStudySelect = document.getElementById('stage-proto-study-select');
             const protoApprovalSelect = document.getElementById('stage-proto-approval-select');
             if (protoStudySelect && protoApprovalSelect) {
-               try {
-                 const res = await authFetch('/api/Members');
-                 if (res.ok) {
-                   const membersData = await res.json();
-                   const membersList = Array.isArray(membersData) ? membersData : (Object.keys(membersData).filter(k => Array.isArray(membersData[k])).length > 0 ? membersData[Object.keys(membersData).filter(k => Array.isArray(membersData[k]))[0]] : [membersData]);
-                   const optionsHtml = '<option value="0">Select User...</option>' + membersList.map(m => `<option value="${m.id || m.userId || 0}">${m.fullName || m.name || 'Unknown'}</option>`).join('');
-                   protoStudySelect.innerHTML = optionsHtml;
-                   protoApprovalSelect.innerHTML = optionsHtml;
-                 }
-               } catch (err) {
-                 console.error('Failed to load members for proto users', err);
-               }
+              try {
+                const res = await authFetch('/api/Members');
+                if (res.ok) {
+                  const membersData = await res.json();
+                  const membersList = Array.isArray(membersData) ? membersData : (Object.keys(membersData).filter(k => Array.isArray(membersData[k])).length > 0 ? membersData[Object.keys(membersData).filter(k => Array.isArray(membersData[k]))[0]] : [membersData]);
+                  const optionsHtml = '<option value="0">Select User...</option>' + membersList.map(m => `<option value="${m.id || m.userId || 0}">${m.fullName || m.name || 'Unknown'}</option>`).join('');
+                  protoStudySelect.innerHTML = optionsHtml;
+                  protoApprovalSelect.innerHTML = optionsHtml;
+                }
+              } catch (err) {
+                console.error('Failed to load members for proto users', err);
+              }
             }
 
             overlay.querySelector('#approve-stage-btn')?.addEventListener('click', async (btnEv) => {
               const comments = overlay.querySelector('#stage-comments')?.value?.trim() || '';
-              
+
               const cb = document.getElementById('stage-revert-pm-checkbox');
               const revertThroughPM = cb ? cb.checked : false;
-              
+
               const sel = document.getElementById('stage-pm-dropdown');
               const selectedPMId = sel && sel.value ? parseInt(sel.value, 10) : 0;
-              
+
               if (revertThroughPM && (!selectedPMId || isNaN(selectedPMId))) {
-                 showToast('Please select a Project Manager before proceeding', 'warning');
-                 return;
+                showToast('Please select a Project Manager before proceeding', 'warning');
+                return;
               }
 
               const pStudy = document.getElementById('stage-proto-study-select');
@@ -996,16 +996,16 @@ async function renderInProgress(tc) {
             overlay.querySelector('#reject-stage-btn')?.addEventListener('click', async (btnEv) => {
               const comments = overlay.querySelector('#stage-comments')?.value?.trim() || '';
               const revertToDesigner = overlay.querySelector('#stage-revert-designer')?.checked || false;
-              
+
               const cb = document.getElementById('stage-revert-pm-checkbox');
               const revertThroughPM = cb ? cb.checked : false;
-              
+
               const sel = document.getElementById('stage-pm-dropdown');
               const selectedPMId = sel && sel.value ? parseInt(sel.value, 10) : 0;
-              
+
               if (revertThroughPM && (!selectedPMId || isNaN(selectedPMId))) {
-                 showToast('Please select a Project Manager before proceeding', 'warning');
-                 return;
+                showToast('Please select a Project Manager before proceeding', 'warning');
+                return;
               }
 
               const pStudy = document.getElementById('stage-proto-study-select');
@@ -1053,7 +1053,7 @@ async function renderInProgress(tc) {
 
             overlay.querySelector('#resubmit-stage-btn')?.addEventListener('click', async (btnEv) => {
               const comments = overlay.querySelector('#stage-comments')?.value?.trim() || '';
-              
+
               const btn = btnEv.currentTarget;
               btn.disabled = true;
               btn.textContent = 'Resubmitting...';
@@ -1066,13 +1066,13 @@ async function renderInProgress(tc) {
                   protoStudyUserId: 0,
                   protoApprovalUserId: 0
                 };
-                
+
                 const res = await authFetch('/api/Parts/' + entityId + '/resubmit-part-number', {
                   method: 'POST',
                   body: JSON.stringify(payload),
                   headers: { 'Content-Type': 'application/json' }
                 });
-                
+
                 if (res.ok) {
                   showToast('Resubmitted successfully', 'success');
                   overlay.remove();
@@ -1176,14 +1176,14 @@ async function renderHistory(tc) {
     // Fetch history concurrently
     const historyPromises = uniqueTargets.map(target => {
       if (target.type === 'BOM') {
-         return authFetch(`/api/BOM/${target.id}/approval-history`)
-           .then(res => res.json())
-           .catch(() => []);
+        return authFetch(`/api/BOM/${target.id}/approval-history`)
+          .then(res => res.json())
+          .catch(() => []);
       } else {
-         return fetchPartApprovalHistory(target.id).catch(() => []);
+        return fetchPartApprovalHistory(target.id).catch(() => []);
       }
     });
-    
+
     const historyResults = await Promise.all(historyPromises);
 
     // Flatten and format the results

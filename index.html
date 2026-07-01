@@ -4,11 +4,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Security Headers (enforced via meta where supported; X-Frame-Options & HSTS require server-side headers) -->
+  <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+  <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' http://203.16.201.244:5000 http://203.16.202.17:5000; img-src 'self' data:;" />
   <title>Kinetic Green — VERTEX | Product Lifecycle Management</title>
   <meta name="description"
     content="Kinetic Green VERTEX — Enterprise Product Lifecycle Management for Electric 2-Wheeler & 3-Wheeler. Teamcenter-inspired prototype." />
+  <!-- Performance: preconnect to font origins before browser parses the full CSS -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <!-- Fonts: display=swap prevents invisible text during font load (FOIT → FOUT) -->
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
     rel="stylesheet" />
@@ -34,7 +42,7 @@
             <div class="login-logo-icon glass-icon"
               style="padding: 0; overflow: hidden; display: flex; align-items: center; justify-content: center;">
               <img src="/src/assets/image.png" alt="Kinetic Green Logo"
-                style="width: 100%; height: 100%; object-fit: contain;">
+                style="width: 100%; height: 100%; object-fit: contain;" loading="eager" />
             </div>
             <div>
               <h1 class="login-brand-name">Kinetic Green</h1>
@@ -128,7 +136,7 @@
             <div class="logo-icon"
               style="padding: 0; overflow: hidden; display: flex; align-items: center; justify-content: center;">
               <img src="/src/assets/image.png" alt="Kinetic Green Logo"
-                style="width: 100%; height: 100%; object-fit: contain;">
+                style="width: 100%; height: 100%; object-fit: contain;" loading="lazy" />
             </div>
             <div class="logo-text">
               <span class="logo-brand">Kinetic Green</span>
@@ -305,10 +313,6 @@
   </div>
 
   <script type="module" src="/src/main.js"></script>
-</body>
-
-</html>
-<script type="module" src="/src/main.js"></script>
 </body>
 
 </html>

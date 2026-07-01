@@ -7,14 +7,6 @@ export function renderDashboard(container) {
         <h1>Dashboard</h1>
         <p>Welcome back, Rohit. Here's your PLM overview for today — <strong>06 April 2026</strong>.</p>
       </div>
-      <div class="page-actions">
-        <button class="btn btn-outline btn-sm" id="dash-export">
-          <span class="material-icons-outlined" style="font-size:16px">download</span>Export Report
-        </button>
-        <button class="btn btn-primary btn-sm" id="dash-new-part">
-          <span class="material-icons-outlined" style="font-size:16px">add</span>New Part
-        </button>
-      </div>
     </div>
 
     <!-- KPI Tiles -->
