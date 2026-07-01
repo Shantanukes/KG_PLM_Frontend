@@ -291,194 +291,52 @@ export function renderParts(container) {
 
   if (role === 'designer') {
     container.querySelector('#btn-request-part')?.addEventListener('click', async () => {
-      let groupOpts = '';
-      try {
-        const res = await authFetch('/api/Lookups/part-groups');
-        if (res.ok) {
-          const allGroups = await res.json();
-          const standardGroups = allGroups.filter(g => !g.isHardwareGroup);
-          groupOpts = standardGroups.map(g =>
-            `<option value="${g.groupCode}:${g.subGroupCode}">${g.groupCode}${g.subGroupCode} - ${g.name}</option>`
-          ).join('');
-        }
-      } catch (err) {
-        console.error('Error fetching group numbers:', err);
-      }
-
       showModal(
         'Request New Part',
         `<div class="detail-grid">
-          <div class="form-group">
-            <label class="form-label">Product Category <span style="color:#DC2626">*</span></label>
-            <select class="form-select" id="req-cat-code">${optionsHtml(PRODUCT_CATEGORIES, 'code', 'label')}</select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Model Number <span style="color:#DC2626">*</span></label>
-            <input type="text" class="form-input" id="req-model-code" placeholder="Enter Model Number" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Group Number <span style="color:#DC2626">*</span></label>
-            <select class="form-select" id="req-group-number">${groupOpts}</select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Machining / Assembly Status <span style="color:#DC2626">*</span></label>
-            <select class="form-select" id="req-machining-status">${optionsHtml(MACHINING_STATUS, 'code', 'label')}</select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Revision Letter <span style="color:#DC2626">*</span></label>
-            <select class="form-select" id="req-revision-letter">${REVISION_LETTERS.map(l => `<option value="${l}">${l}</option>`).join('')}</select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Development Status <span style="color:#DC2626">*</span></label>
-            <select class="form-select" id="req-dev-status">${optionsHtml(DEV_STATUS, 'code', 'label')}</select>
+          <div class="form-group" style="grid-column:1 / -1">
+            <label class="form-label">Title <span style="color:#DC2626">*</span></label>
+            <input class="form-input" id="req-title" placeholder="Enter title" />
           </div>
           <div class="form-group" style="grid-column:1 / -1">
-            <label class="form-label">Part Number Preview</label>
-            <input class="form-input" id="req-number-preview" readonly style="font-family:var(--font-mono);font-weight:700;letter-spacing:1px;background:var(--bg-muted)" />
+            <label class="form-label">Project Name <span style="color:#DC2626">*</span></label>
+            <input class="form-input" id="req-project-name" placeholder="Enter project name" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Category <span style="color:#DC2626">*</span></label>
+            <input class="form-input" id="req-category" placeholder="Enter category" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Material <span style="color:#DC2626">*</span></label>
+            <input class="form-input" id="req-material" placeholder="Enter material" />
           </div>
           <div class="form-group" style="grid-column:1 / -1">
-            <label class="form-label">Name <span style="color:#DC2626">*</span></label>
-            <input class="form-input" id="req-part-name" placeholder="Enter part name" />
-          </div>
-          <div class="form-group" style="grid-column:1 / -1">
-            <label class="form-label">Description <span style="color:#DC2626">*</span></label>
-            <input class="form-input" id="req-part-desc" placeholder="Enter part description" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Make / Buy</label>
-            <select class="form-select" id="req-makebuy">
-              <option value="0">Component</option>
-              <option value="1">Assembly</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Weight (kg)</label>
-            <input class="form-input" type="number" id="req-weight" value="0" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Unit of Measure</label>
-            <input class="form-input" id="req-uom" value="Each" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Quantity</label>
-            <input class="form-input" type="number" id="req-qty" value="1" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">BOM ID <span style="color:#DC2626">*</span></label>
-            <input class="form-input" type="number" id="req-part-bomid" value="0" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Release Flag</label>
-            <select class="form-select" id="req-release-flag">
-              <option value="0">0 - Not Released</option>
-              <option value="1">1 - Released</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Prop / Non-Prop</label>
-            <select class="form-select" id="req-prop-nonprop">
-              <option value="0">0 - Non-Proprietary</option>
-              <option value="1">1 - Proprietary</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">EE Release</label>
-            <select class="form-select" id="req-ee-release">
-              <option value="0">0 - No</option>
-              <option value="1">1 - Yes</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">GST Code</label>
-            <input class="form-input" type="text" id="req-gst-code" value="" placeholder="Enter GST Code" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Homologation Status</label>
-            <select class="form-select" id="req-homologation">
-              <option value="0">No</option>
-              <option value="1">Yes</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Assigned Designer User ID</label>
-            <input class="form-input" type="number" id="req-assigned-user" value="0" placeholder="0 if none" />
+            <label class="form-label">Reason <span style="color:#DC2626">*</span></label>
+            <textarea class="form-input" id="req-reason" rows="3" placeholder="Enter reason for request"></textarea>
           </div>
         </div>`,
         `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
          <button class="btn btn-primary" id="save-request-part">Submit Request</button>`
       );
 
-      const catEl = document.getElementById('req-cat-code');
-      const modelEl = document.getElementById('req-model-code');
-      const groupEl = document.getElementById('req-group-number');
-      const machEl = document.getElementById('req-machining-status');
-      const revEl = document.getElementById('req-revision-letter');
-      const devEl = document.getElementById('req-dev-status');
-      const previewEl = document.getElementById('req-number-preview');
-
-      const syncPreview = async () => {
-        if (!previewEl) return;
-        const [gc, sc] = String(groupEl?.value || '').split(':');
-        const serial = await getNextSerial({
-          categoryCode: catEl?.value || '',
-          modelCode: modelEl?.value || '',
-          groupCode: gc || '',
-          subCode: sc || '',
-        });
-        previewEl.value = buildPartNumber({
-          categoryCode: catEl?.value || '',
-          modelCode: modelEl?.value || '',
-          groupCode: gc || '',
-          subCode: sc || '',
-          serial,
-          machiningCode: machEl?.value || '0',
-          revisionLetter: revEl?.value || 'A',
-          devStatusCode: devEl?.value || 'X',
-        });
-      };
-
-      [catEl, modelEl, groupEl, machEl, revEl, devEl].forEach(el => el?.addEventListener('change', syncPreview));
-      syncPreview();
-
       setTimeout(() => {
         document.getElementById('save-request-part')?.addEventListener('click', async () => {
-          const bomIdStr = document.getElementById('req-part-bomid')?.value.trim();
-          const name = document.getElementById('req-part-name')?.value.trim();
-          const description = document.getElementById('req-part-desc')?.value.trim();
+          const title = document.getElementById('req-title')?.value.trim();
+          const projectName = document.getElementById('req-project-name')?.value.trim();
+          const category = document.getElementById('req-category')?.value.trim();
+          const material = document.getElementById('req-material')?.value.trim();
+          const reason = document.getElementById('req-reason')?.value.trim();
 
-          if (!bomIdStr || !name || !description) return showToast('Please fill all mandatory fields.', 'error');
-          const bomId = parseInt(bomIdStr, 10);
-          if (isNaN(bomId)) return showToast('BOM ID must be a valid number.', 'error');
-
-          const [groupCode, subGroupCode] = String(groupEl?.value || '').split(':');
-
-          let serialNumber = '001';
-          if (previewEl.value && previewEl.value.length >= 7) {
-            serialNumber = previewEl.value.slice(5, 8);
+          if (!title || !projectName || !category || !material || !reason) {
+            return showToast('Please fill all mandatory fields.', 'error');
           }
 
           const payload = {
-            bomId,
-            categoryCode: catEl?.value || "",
-            modelCode: modelEl?.value || "",
-            groupCode,
-            subGroupCode,
-            serialNumber,
-            machiningCode: machEl?.value?.trim() || "0",
-            revisionLetter: revEl?.value?.trim() || "A",
-            devStatusCode: devEl?.value?.trim() || "X",
-            name,
-            description,
-            makeBuy: parseInt(document.getElementById('req-makebuy')?.value || "0", 10),
-            releaseFlag: parseInt(document.getElementById('req-release-flag')?.value || "0", 10),
-            propNonProp: parseInt(document.getElementById('req-prop-nonprop')?.value || "0", 10),
-            eeRelease: ((Number(groupCode || 0) * 10 + Number(subGroupCode || 0)) >= 50 && (Number(groupCode || 0) * 10 + Number(subGroupCode || 0)) <= 59) ? parseInt(document.getElementById('req-ee-release')?.value || "0", 10) : null,
-            weight: parseFloat(document.getElementById('req-weight')?.value || "0"),
-            unitOfMeasure: document.getElementById('req-uom')?.value?.trim() || "Each",
-            gstCode: document.getElementById('req-gst-code')?.value?.trim() || "",
-            quantity: parseInt(document.getElementById('req-qty')?.value || "1", 10),
-            homologationStatus: Number(document.getElementById('req-homologation')?.value || 0),
-            assignedToDesignerUserId: parseInt(document.getElementById('req-assigned-user')?.value || "0", 10)
+            title,
+            projectName,
+            category,
+            material,
+            reason
           };
 
           try {
