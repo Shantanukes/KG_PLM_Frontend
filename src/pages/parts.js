@@ -1828,6 +1828,21 @@ async function renderCreatePart(tc) {
     console.error('Error fetching group numbers:', err);
   }
 
+  let bomOptionsHtml = '';
+  const cpBomMap = {};
+  try {
+    const boms = await getAllBomsWithParts();
+    const items = Array.isArray(boms) ? boms : (boms?.items || []);
+    items.forEach(b => {
+      const label = `${b.name || b.bomNumber || '-'}${b.description ? ' — ' + b.description : ''}`;
+      cpBomMap[label] = b.id;
+      bomOptionsHtml += `<option value="${label}"></option>`;
+    });
+  } catch (err) {
+    console.error('Error fetching BOMs for create part:', err);
+  }
+
+
   tc.innerHTML = `
     <div class="card">
       <div class="card-header">
@@ -1848,8 +1863,11 @@ async function renderCreatePart(tc) {
 
         <div class="grid-2" style="gap:20px">
           <div class="form-group" style="grid-column:1 / -1">
-            <label class="form-label">BOM ID <span style="color:#DC2626">*</span></label>
-            <input class="form-input" type="number" id="cp-bomid" placeholder="Enter BOM ID" />
+            <label class="form-label">BOM <span style="color:#DC2626">*</span></label>
+            <input class="form-input" list="cp-bom-datalist" id="cp-bom-input" placeholder="Search BOM by Name or Number" />
+            <datalist id="cp-bom-datalist">
+              ${bomOptionsHtml}
+            </datalist>
           </div>
           <div class="form-group">
             <label class="form-label">Product Category <span style="color:#DC2626">*</span></label>
@@ -2067,7 +2085,8 @@ async function renderCreatePart(tc) {
   });
 
   tc.querySelector('#cp-submit')?.addEventListener('click', async () => {
-    const bomIdStr = tc.querySelector('#cp-bomid')?.value?.trim();
+    const bomInputVal = tc.querySelector('#cp-bom-input')?.value?.trim();
+    const bomId = cpBomMap[bomInputVal];
     const name = tc.querySelector('#cp-name')?.value?.trim();
     const [groupCode, subGroupCode] = String(tc.querySelector('#cp-group')?.value || '').split(':');
     const categoryCode = tc.querySelector('#cp-cat')?.value?.trim();
@@ -2078,9 +2097,7 @@ async function renderCreatePart(tc) {
     const unitOfMeasure = tc.querySelector('#cp-uom')?.value?.trim();
     const releaseFlagStr = tc.querySelector('#cp-release-flag')?.value;
 
-    if (!bomIdStr) return showToast('BOM ID is required.', 'error');
-    const bomId = parseInt(bomIdStr, 10);
-    if (isNaN(bomId)) return showToast('BOM ID must be a valid number.', 'error');
+    if (!bomInputVal || !bomId) return showToast('Please select a valid BOM from the list.', 'error');
     if (!name) return showToast('Part name is required.', 'error');
     if (!categoryCode || !modelCode || !groupCode || !subGroupCode) return showToast('Category, model, and group are required.', 'error');
     if (releaseFlagStr === '' || releaseFlagStr === undefined || releaseFlagStr === null) return showToast('Release Flag is required.', 'error');
