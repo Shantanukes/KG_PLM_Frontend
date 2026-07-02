@@ -1459,7 +1459,7 @@ async function renderPartSearch(tc) {
         <td>
           <button class="btn btn-ghost btn-xs btn-info-part" data-id="${p.id}" title="View"><span class="material-icons-outlined" style="font-size:16px">info</span></button>
           ${isProjectManager ? `<button class="btn btn-ghost btn-xs btn-edit-part" data-id="${p.id}" title="Edit"><span class="material-icons-outlined" style="font-size:16px">edit</span></button>` : ''}
-          <button class="btn btn-ghost btn-xs btn-revise-part" data-id="${p.id}" data-pn="${p.partNumber}" title="Revise Part"><span class="material-icons-outlined" style="font-size:16px">history</span></button>
+          ${isProjectManager ? `<button class="btn btn-ghost btn-xs btn-revise-part" data-id="${p.id}" data-pn="${p.partNumber}" title="Revise Part"><span class="material-icons-outlined" style="font-size:16px">history</span></button>` : ''}
           <button class="btn btn-ghost btn-xs btn-upload-part" data-pn="${p.partNumber}" title="Upload Drawing"><span class="material-icons-outlined" style="font-size:16px">upload_file</span></button>
           ${role === 'superadmin' ? `<button class="btn btn-ghost btn-xs btn-delete-part" data-id="${p.id}" title="Delete"><span class="material-icons-outlined" style="font-size:16px;color:#DC2626;">delete</span></button>` : ''}
         </td>
@@ -1713,8 +1713,10 @@ function openRevisePartModal(p, onRevised) {
         <input class="form-input" id="revise-reason" placeholder="Enter reason for revision" />
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Drawing File <span style="color:#DC2626">*</span></label>
-        <input class="form-input" type="file" id="revise-drawing-file" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.stp,.step" />
+        <label class="form-label">Assigned Designer <span style="color:#DC2626">*</span></label>
+        <select class="form-select" id="revise-designer">
+          <option value="">Select Designer</option>
+        </select>
       </div>
       <div class="form-group" style="grid-column:1/-1">
         <div id="revise-response-preview" style="display:none;background:var(--bg-muted);border-radius:var(--radius-sm);padding:12px;font-family:var(--font-mono);font-size:0.75rem;white-space:pre-wrap;max-height:200px;overflow-y:auto"></div>
@@ -1725,30 +1727,45 @@ function openRevisePartModal(p, onRevised) {
   );
 
   setTimeout(() => {
+    const loadDesigners = async () => {
+      try {
+        const res = await authFetch('/api/Parts/designers');
+        if (res.ok) {
+          const designers = await res.json();
+          const designerSelect = document.getElementById('revise-designer');
+          if (designerSelect) {
+            designerSelect.innerHTML = '<option value="">Select Designer</option>' + designers.map(d => `<option value="${d.id}">${d.fullName || d.name || ''}</option>`).join('');
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load designers:', err);
+      }
+    };
+    loadDesigners();
+
     document.getElementById('revise-confirm')?.addEventListener('click', async () => {
       const devCode = document.getElementById('revise-dev-status')?.value?.trim() || null;
       const reason = document.getElementById('revise-reason')?.value?.trim() || null;
-      const fileInput = document.getElementById('revise-drawing-file');
+      const designerId = document.getElementById('revise-designer')?.value;
 
-      if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-        return showToast('Drawing File is mandatory for part revision.', 'error');
+      if (!designerId) {
+        return showToast('Assigned Designer is mandatory for part revision.', 'error');
       }
-
-      const file = fileInput.files[0];
 
       const preview = document.getElementById('revise-response-preview');
       const btn = document.getElementById('revise-confirm');
       btn.disabled = true;
       btn.textContent = 'Revising…';
 
-      const formData = new FormData();
-      formData.append('PartId', p.id);
-      if (devCode) formData.append('NewDevStatusCode', devCode);
-      if (reason) formData.append('Reason', reason);
-      formData.append('drawingFile', file);
+      const payload = {
+        partId: p.id,
+        newDevStatusCode: devCode,
+        reason: reason,
+        assignedToDesignerUserId: parseInt(designerId, 10)
+      };
 
       try {
-        const result = await revisePart(formData);
+        const result = await revisePart(payload);
         if (preview) {
           preview.style.display = 'block';
           preview.textContent = JSON.stringify(result, null, 2);

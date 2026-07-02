@@ -129,10 +129,11 @@ export async function getPartById(id) {
   return response.json();
 }
 
-export async function revisePart(formData) {
+export async function revisePart(payload) {
   const response = await authFetch('/api/Parts/revise', {
     method: 'POST',
-    body: formData,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
   });
 
   let rawData = null;
