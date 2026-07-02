@@ -162,6 +162,7 @@ export function renderDocuments(container) {
       date: formatDate(apiDoc.createdAt),
       color: '#6B7280',
       storageUrl: apiDoc.storageUrl,
+      fileUrl: apiDoc.id ? `http://203.16.201.244:5000/api/Documents/${apiDoc.id}/file` : '#',
       id: apiDoc.id
     };
   }
@@ -282,10 +283,13 @@ export function renderDocuments(container) {
       btn.addEventListener('click', () => openViewer(docs[btn.dataset.index]));
     });
     tbody.querySelectorAll('.dl-doc-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const d = docs[btn.dataset.index];
         showToast(`Downloading ${d.drw}…`, 'info');
-        setTimeout(() => showToast(`${d.drw} downloaded!`, 'success'), 1200);
+        if (d.fileUrl && d.fileUrl !== '#') {
+          window.open(d.fileUrl, '_blank');
+        }
       });
     });
     tbody.querySelectorAll('.approve-doc-btn').forEach(btn => {
@@ -366,6 +370,10 @@ export function renderDocuments(container) {
         <span>Type: ${doc.type}</span><span>Size: ${doc.size}</span>
       </div>
     </div>`;
+
+    const dlBtn = container.querySelector('#viewer-download');
+    if (dlBtn) dlBtn.dataset.fileUrl = doc.fileUrl || '#';
+
     container.querySelector('#viewer-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     showToast(`Viewing: ${doc.drw}`, 'info');
   }
@@ -399,7 +407,15 @@ export function renderDocuments(container) {
   container.querySelector('#viewer-zoom-out')?.addEventListener('click', () => showToast('Zoomed out', 'info'));
   container.querySelector('#viewer-fit')?.addEventListener('click', () => showToast('Fit to screen', 'info'));
   container.querySelector('#viewer-annotate')?.addEventListener('click', () => showToast('Annotation mode enabled. Click on the drawing to add a comment.', 'info'));
-  container.querySelector('#viewer-download')?.addEventListener('click', () => showToast('Downloading current file…', 'info'));
+  container.querySelector('#viewer-download')?.addEventListener('click', (e) => {
+    const url = e.currentTarget.dataset.fileUrl;
+    if (url && url !== '#') {
+      window.open(url, '_blank');
+      showToast('Downloading current file…', 'info');
+    } else {
+      showToast('No file available to download', 'warning');
+    }
+  });
   container.querySelector('#viewer-prev')?.addEventListener('click', () => showToast('Previous revision loaded', 'info'));
   container.querySelector('#viewer-next')?.addEventListener('click', () => showToast('No newer revision available', 'warning'));
 

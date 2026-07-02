@@ -138,7 +138,7 @@ function renderHomologationTab(container) {
 
     const rows = uploadedCerts.map(cert => {
       const dateStr = new Date(cert.createdAt).toLocaleDateString();
-      const storageUrl = cert.storageUrl ? `http://203.16.201.244:5000${cert.storageUrl}` : '#';
+      const storageUrl = cert.id ? `http://203.16.201.244:5000/api/Documents/${cert.id}/file` : '#';
       return `
         <tr>
           <td style="font-weight:500; color:var(--brand-primary);">${cert.drawingNumber || '-'}</td>
