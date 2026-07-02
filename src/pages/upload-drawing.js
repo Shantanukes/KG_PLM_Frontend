@@ -202,7 +202,7 @@ export function renderUploadDrawing(container, prefillPartNumber = '') {
     if (partNumber) formData.append('PartNumber', partNumber);
     if (revision) formData.append('Revision', revision);
     if (fileInput.files?.length) formData.append('file', fileInput.files[0]);
- 
+
 
     const btn = container.querySelector('#ud-submit');
     try {

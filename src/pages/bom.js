@@ -447,6 +447,12 @@ async function renderPartLinking(tc) {
                 <tr><td colspan="3" style="text-align:center;padding:20px">Please load a BOM first.</td></tr>
               </tbody>
             </table>
+            <div id="bom-approval-container" style="padding: 16px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; background: var(--bg-muted);">
+              <button class="btn btn-primary" id="btn-initiate-bom-approval" style="gap:8px; min-width:180px;">
+                <span class="material-icons-outlined" style="font-size:16px;">check_circle_outline</span>
+                Initiate Approvals
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -680,6 +686,38 @@ async function renderPartLinking(tc) {
       console.error('[PART SEARCH]', err);
       searchTbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;color:red">Failed to search parts.</td></tr>';
       showToast(err.message || 'Error searching parts', 'error');
+    }
+  });
+
+  // ── Initiate Approvals ──
+  tc.querySelector('#btn-initiate-bom-approval')?.addEventListener('click', async () => {
+    if (!currentBomId) {
+      showToast('Please load a BOM first before initiating approval.', 'warning');
+      return;
+    }
+    const btn = tc.querySelector('#btn-initiate-bom-approval');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-icons-outlined" style="font-size:16px;animation:spin 1s linear infinite">refresh</span> Initiating...';
+    try {
+      const res = await authFetch(`/api/BOM/${currentBomId}/initiate-entity-approval`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        showToast(data.message || 'Approval initiated successfully!', 'success');
+      } else {
+        showModal('Approval Error', `
+          <div style="padding: 12px; background: #FEF2F2; color: #DC2626; border-left: 4px solid #DC2626; font-size: 14px; line-height: 1.5; white-space: pre-wrap;">
+            ${data.message || 'Failed to initiate approval.'}
+          </div>
+        `);
+      }
+    } catch (err) {
+      showToast('An error occurred while initiating approval.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-icons-outlined" style="font-size:16px;">check_circle_outline</span> Initiate Approvals';
     }
   });
 }

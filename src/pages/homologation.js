@@ -91,6 +91,10 @@ function renderHomologationTab(container) {
             <label class="form-label">Invoice Number <span style="color:#DC2626">*</span></label>
             <input type="text" class="form-input" id="hl-invoiceNum" placeholder="Enter invoice number" />
           </div>
+          <div class="form-group">
+            <label class="form-label">Certificate Number</label>
+            <input type="text" class="form-input" id="hl-certNum" placeholder="Enter certificate number" />
+          </div>
           <div class="form-group" style="display:none;">
             <label class="form-label">Type</label>
             <input type="hidden" id="hl-type" value="5" />
@@ -111,11 +115,63 @@ function renderHomologationTab(container) {
       <div class="card-header">
         <div class="card-title">BOM Compliance Certificates</div>
       </div>
-      <div class="card-body">
-        <p class="text-secondary" style="font-size: 0.9rem;">No BOM certificates uploaded yet. Recently added compliance records will be listed here.</p>
+      <div class="card-body no-pad" id="hl-cert-list-container">
+        <div style="padding:20px; text-align:center;">
+          <p class="text-secondary" style="font-size: 0.9rem;">No BOM certificates uploaded yet. Recently added compliance records will be listed here.</p>
+        </div>
       </div>
     </div>
   `;
+
+  // Local state for uploaded certificates
+  let uploadedCerts = [];
+
+  function renderCertList() {
+    const listContainer = container.querySelector('#hl-cert-list-container');
+    if (uploadedCerts.length === 0) {
+      listContainer.innerHTML = `
+        <div style="padding:20px; text-align:center;">
+          <p class="text-secondary" style="font-size: 0.9rem;">No BOM certificates uploaded yet. Recently added compliance records will be listed here.</p>
+        </div>`;
+      return;
+    }
+
+    const rows = uploadedCerts.map(cert => {
+      const dateStr = new Date(cert.createdAt).toLocaleDateString();
+      const storageUrl = cert.storageUrl ? `http://203.16.201.244:5000${cert.storageUrl}` : '#';
+      return `
+        <tr>
+          <td style="font-weight:500; color:var(--brand-primary);">${cert.drawingNumber || '-'}</td>
+          <td>${cert.name || '-'}</td>
+          <td>${cert.partNumber || '-'} <span class="badge" style="margin-left:4px;">Rev ${cert.revision || '-'}</span></td>
+          <td><span class="badge" style="background:var(--bg-muted);">${cert.status || 'Draft'}</span></td>
+          <td>${dateStr}</td>
+          <td>
+            <a href="${storageUrl}" target="_blank" class="btn btn-ghost btn-sm" title="View Document" style="display:inline-flex; align-items:center; gap:4px;">
+              <span class="material-icons-outlined" style="font-size:16px;">visibility</span> View
+            </a>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    listContainer.innerHTML = `
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Drawing Number</th>
+            <th>Name</th>
+            <th>Part Number</th>
+            <th>Status</th>
+            <th>Uploaded On</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+
 
   // ── File picker ──
   const fileInput = container.querySelector('#hl-file-input');
@@ -178,7 +234,7 @@ function renderHomologationTab(container) {
   container.querySelector('#hl-reset').addEventListener('click', () => {
     container.querySelector('#hl-part-search').value = '';
     container.querySelector('#hl-part-info').style.display = 'none';
-    ['#hl-drwNum', '#hl-name', '#hl-partNumber', '#hl-rev', '#hl-issueDate', '#hl-expiryDate', '#hl-invoiceNum'].forEach(id => { container.querySelector(id).value = ''; });
+    ['#hl-drwNum', '#hl-name', '#hl-partNumber', '#hl-rev', '#hl-issueDate', '#hl-expiryDate', '#hl-invoiceNum', '#hl-certNum'].forEach(id => { container.querySelector(id).value = ''; });
     dropText.textContent = 'Click to select file or drag & drop';
     fileInput.value = '';
   });
@@ -193,36 +249,93 @@ function renderHomologationTab(container) {
     const issueDate = container.querySelector('#hl-issueDate').value;
     const expiryDate = container.querySelector('#hl-expiryDate').value;
     const invoiceNum = container.querySelector('#hl-invoiceNum').value.trim();
+    const certNum = container.querySelector('#hl-certNum').value.trim();
+    const dropZone = container.querySelector('#hl-drop-zone');
 
-    if (!drawingNumber || !name || !issueDate || !expiryDate || !invoiceNum || !fileInput.files?.length) {
-      showToast('Drawing Number, Name, Issue Date, Expiry Date, Invoice Number, and File are mandatory.', 'error');
+    // ── Individual field validation with specific messages ──
+    if (!drawingNumber) {
+      showToast('Please enter a Drawing Number.', 'error');
+      container.querySelector('#hl-drwNum').focus();
+      return;
+    }
+    if (!name) {
+      showToast('Please enter a Name.', 'error');
+      container.querySelector('#hl-name').focus();
+      return;
+    }
+    if (!issueDate) {
+      showToast('Please select an Issue Date.', 'error');
+      container.querySelector('#hl-issueDate').focus();
+      return;
+    }
+    if (!expiryDate) {
+      showToast('Please select an Expiry Date.', 'error');
+      container.querySelector('#hl-expiryDate').focus();
+      return;
+    }
+    if (!invoiceNum) {
+      showToast('Please enter an Invoice Number.', 'error');
+      container.querySelector('#hl-invoiceNum').focus();
+      return;
+    }
+    if (!fileInput.files?.length) {
+      showToast('Please select a file to upload.', 'error');
+      // Highlight drop zone in red to draw attention
+      dropZone.style.borderColor = '#DC2626';
+      dropZone.style.background = '#FEF2F2';
+      setTimeout(() => {
+        dropZone.style.borderColor = '';
+        dropZone.style.background = 'var(--brand-primary-lighter)';
+      }, 3000);
       return;
     }
 
     const formData = new FormData();
     formData.append('DrawingNumber', drawingNumber);
     formData.append('Name', name);
-    formData.append('Type', type);
+    formData.append('Type', '5');          // integer 5 = Homologation (FormData sends as string on wire)
     if (partNumber) formData.append('PartNumber', partNumber);
     if (revision) formData.append('Revision', revision);
-    
-    const dtIssue = new Date(issueDate).toISOString();
-    const dtExpiry = new Date(expiryDate).toISOString();
-    formData.append('IssueDate', dtIssue);
-    formData.append('ExpiryDate', dtExpiry);
-    
-    formData.append('InvoiceNumber', invoiceNum);
-    
+    if (invoiceNum) formData.append('InvoiceNumber', invoiceNum);
+    if (certNum) formData.append('CertificateNumber', certNum);
+
+    // IMPORTANT: Do NOT use toISOString() here. The backend C# API expects a simple date format.
+    // Sending a full ISO string (with T and Z) causes the C# backend to throw a 500 Internal Server Error FormatException.
+    formData.append('IssueDate', issueDate);
+    formData.append('ExpiryDate', expiryDate);
+
     formData.append('file', fileInput.files[0]);
+
+    // ── Log full payload for debugging ──
+    const payloadLog = {};
+    formData.forEach((value, key) => {
+      if (key === 'Type') {
+        payloadLog[key] = parseInt(value, 10);
+      } else {
+        payloadLog[key] = value instanceof File
+          ? `[File: ${ value.name }, size: ${ value.size } bytes, type: ${ value.type }]`
+          : value;
+      }
+    });
+    console.log('[HOMOLOGATION UPLOAD] Payload being sent to server:', payloadLog);
 
     const btn = container.querySelector('#hl-submit');
     try {
       btn.innerHTML = '<span class="material-icons-outlined" style="font-size:16px;animation:spin 0.6s linear infinite">autorenew</span> Uploading…';
       btn.disabled = true;
       showToast('Uploading compliance certificate…', 'info');
-      await uploadDocument(formData);
+      
+      const responseData = await uploadDocument(formData);
+      
       showToast('Certificate uploaded successfully!', 'success');
       btn.innerHTML = '<span class="material-icons-outlined" style="font-size:16px;">check_circle</span> Uploaded!';
+      
+      // Add the new certificate to the list and re-render
+      if (responseData) {
+        uploadedCerts.unshift(responseData);
+        renderCertList();
+      }
+
       setTimeout(() => {
         btn.innerHTML = '<span class="material-icons-outlined" style="font-size:16px;">upload_file</span>Upload Certificate';
         btn.disabled = false;

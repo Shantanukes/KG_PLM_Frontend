@@ -33,15 +33,22 @@ export async function uploadDocument(formData) {
     body: formData,
   });
 
+  // Try JSON first, fall back to plain text so we never lose the real error
   let rawData = null;
+  let rawText = '';
   try {
-    rawData = await response.json();
+    rawText = await response.text();
+    rawData = rawText ? JSON.parse(rawText) : null;
   } catch {
     rawData = null;
   }
 
   if (!response.ok) {
-    throw new Error(getErrorMessageFromResponse(rawData, `Upload failed (${response.status})`));
+    const msg = rawData?.message || rawData?.error || rawData?.detail || rawData?.title
+      || rawText
+      || `Upload failed (${response.status})`;
+    console.error('[UPLOAD ERROR]', response.status, rawText);
+    throw new Error(msg);
   }
   return rawData;
 }
