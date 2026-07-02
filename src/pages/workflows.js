@@ -476,7 +476,7 @@ async function renderMyTasks(tc) {
           const overlay = showModal('Current Approval Stage',
             `<div style="font-family:var(--font-mono); font-size:14px; line-height: 1.6; padding: 10px;">
                <div style="margin-bottom: 12px;"><strong>Approval Type:</strong> ${resolvedType || 'N/A'}</div>
-               <div style="margin-bottom: 12px;"><strong>Current Stage:</strong> <span class="badge" style="background:#F59E0B;color:#fff;">${data.currentApprovalStage || data.bomStatus || 'N/A'}</span></div>
+               <div style="margin-bottom: 12px;"><strong>Current Stage:</strong> <span class="badge" style="background:${(data.currentApprovalStage || data.bomStatus || '').toLowerCase().includes('completed') || (data.currentApprovalStage || data.bomStatus || '').toLowerCase().includes('approved') ? '#10B981' : (data.currentApprovalStage || data.bomStatus || '').toLowerCase().includes('reject') ? '#EF4444' : '#F59E0B'};color:#fff;">${data.currentApprovalStage || data.bomStatus || 'N/A'}</span></div>
                ${resolvedType === 'BOM' ? `
                  <div style="margin-bottom: 12px;"><strong>Part:</strong> ${data.partNumber || '-'} (${data.partName || '-'})</div>
                  <div><strong>Stages:</strong> ${data.totalStagesCompleted ?? 0} completed, ${data.totalStagesRemaining ?? 0} remaining</div>
@@ -757,7 +757,7 @@ async function renderInProgress(tc) {
         id: t.approvalId ? `APP-${t.approvalId}` : `WF-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
         subject: `Review ${t.approvalType || 'Approval'}: ${t.partName || ''} — ${t.stage || ''}`,
         type: t.approvalType || 'Workflow',
-        step: t.stage || 'Pending',
+        step: t.currentApprovalStage || t.status || t.stage || 'Pending',
         assignee: 'Me',
         started: t.createdAt ? new Date(t.createdAt).toLocaleDateString() : 'N/A',
         ref: t.partNumber || '-',
@@ -780,7 +780,7 @@ async function renderInProgress(tc) {
                 <td style="font-family:var(--font-mono);font-weight:600;">${t.id}</td>
                 <td style="max-width:280px;white-space:normal;line-height:1.4;">${t.subject}</td>
                 <td><span class="tag">${t.type}</span></td>
-                <td><span class="badge" style="background:#F59E0B; color:#fff; border:none; padding:4px 8px; border-radius:4px;">${t.step}</span></td>
+                <td><span class="badge" style="background:${(t.step || '').toLowerCase().includes('completed') || (t.step || '').toLowerCase().includes('approved') ? '#10B981' : (t.step || '').toLowerCase().includes('reject') ? '#EF4444' : '#F59E0B'}; color:#fff; border:none; padding:4px 8px; border-radius:4px;">${t.step}</span></td>
                 <td>${t.assignee}</td>
                 <td>${t.started}</td>
                 <td style="font-family:var(--font-mono); font-size:0.857rem;">${t.ref}</td>
@@ -835,7 +835,7 @@ async function renderInProgress(tc) {
           const overlay = showModal('Current Approval Stage',
             `<div style="font-family:var(--font-mono); font-size:14px; line-height: 1.6; padding: 10px;">
                <div style="margin-bottom: 12px;"><strong>Approval Type:</strong> ${resolvedType || 'N/A'}</div>
-               <div style="margin-bottom: 12px;"><strong>Current Stage:</strong> <span class="badge" style="background:#F59E0B;color:#fff;">${data.currentApprovalStage || data.bomStatus || 'N/A'}</span></div>
+               <div style="margin-bottom: 12px;"><strong>Current Stage:</strong> <span class="badge" style="background:${(data.currentApprovalStage || data.bomStatus || '').toLowerCase().includes('completed') || (data.currentApprovalStage || data.bomStatus || '').toLowerCase().includes('approved') ? '#10B981' : (data.currentApprovalStage || data.bomStatus || '').toLowerCase().includes('reject') ? '#EF4444' : '#F59E0B'};color:#fff;">${data.currentApprovalStage || data.bomStatus || 'N/A'}</span></div>
                ${resolvedType === 'BOM' ? `
                  <div style="margin-bottom: 12px;"><strong>Part:</strong> ${data.partNumber || '-'} (${data.partName || '-'})</div>
                  <div><strong>Stages:</strong> ${data.totalStagesCompleted ?? 0} completed, ${data.totalStagesRemaining ?? 0} remaining</div>

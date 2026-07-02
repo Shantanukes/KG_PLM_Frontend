@@ -567,6 +567,20 @@ async function openApproveRequestModal(req, tc) {
     console.error('Error fetching group numbers:', err);
   }
 
+  let bomOptionsHtml = '';
+  const apprBomMap = {};
+  try {
+    const boms = await getAllBomsWithParts();
+    const items = Array.isArray(boms) ? boms : (boms?.items || []);
+    items.forEach(b => {
+      const label = b.bomNumber || 'N/A';
+      apprBomMap[label] = b.bomNumber || "";
+      bomOptionsHtml += `<option value="${label}"></option>`;
+    });
+  } catch (err) {
+    console.error('Error fetching BOMs:', err);
+  }
+
   showModal(
     'Approve & Create Part',
     `<div class="detail-grid">
@@ -634,8 +648,9 @@ async function openApproveRequestModal(req, tc) {
         <input class="form-input" type="number" id="appr-qty" value="1" />
       </div>
       <div class="form-group">
-        <label class="form-label">BOM ID</label>
-        <input class="form-input" type="number" id="appr-bomid" value="0" />
+        <label class="form-label">BOM <span style="color:#DC2626">*</span></label>
+        <input class="form-input" list="appr-bom-datalist" id="appr-bom-input" placeholder="Search BOM by Number" />
+        <datalist id="appr-bom-datalist">${bomOptionsHtml}</datalist>
       </div>
       <div class="form-group">
         <label class="form-label">Release Flag</label>
@@ -719,6 +734,7 @@ async function openApproveRequestModal(req, tc) {
 
     const payload = {
       bomId: Number(req.bomId || 0),
+      bomNumber: document.getElementById('appr-bom-input')?.value?.trim() || "",
       categoryCode: catEl?.value || "",
       modelCode: modelEl?.value || "",
       groupCode,
@@ -732,13 +748,14 @@ async function openApproveRequestModal(req, tc) {
       makeBuy: parseInt(document.getElementById('appr-makebuy')?.value || "0", 10),
       releaseFlag: parseInt(document.getElementById('appr-release-flag')?.value || "0", 10),
       propNonProp: parseInt(document.getElementById('appr-prop-nonprop')?.value || "0", 10),
-      eeRelease: ((Number(groupCode || 0) * 10 + Number(subGroupCode || 0)) >= 50 && (Number(groupCode || 0) * 10 + Number(subGroupCode || 0)) <= 59) ? parseInt(document.getElementById('appr-ee-release')?.value || "0", 10) : null,
+      eeRelease: ((Number(groupCode || 0) * 10 + Number(subGroupCode || 0)) >= 50 && (Number(groupCode || 0) * 10 + Number(subGroupCode || 0)) <= 59) ? parseInt(document.getElementById('appr-ee-release')?.value || "0", 10) : 0,
       weight: parseFloat(document.getElementById('appr-weight')?.value || "0"),
       unitOfMeasure: document.getElementById('appr-uom')?.value?.trim() || "Each",
       gstCode: document.getElementById('appr-gst-code')?.value?.trim() || "",
       quantity: parseInt(document.getElementById('appr-qty')?.value || "1", 10),
       homologationStatus: Number(document.getElementById('appr-homologation')?.value || 0)
     };
+    console.log("Approve & Fulfill Payload:", JSON.stringify(payload, null, 2));
 
     try {
       const res = await authFetch(`/api/PartRequests/${req.id}/fulfill`, {
@@ -1834,8 +1851,8 @@ async function renderCreatePart(tc) {
     const boms = await getAllBomsWithParts();
     const items = Array.isArray(boms) ? boms : (boms?.items || []);
     items.forEach(b => {
-      const label = `${b.name || b.bomNumber || '-'}${b.description ? ' — ' + b.description : ''}`;
-      cpBomMap[label] = b.id;
+      const label = b.bomNumber || 'N/A';
+      cpBomMap[label] = b.bomNumber || "";
       bomOptionsHtml += `<option value="${label}"></option>`;
     });
   } catch (err) {
@@ -1864,7 +1881,7 @@ async function renderCreatePart(tc) {
         <div class="grid-2" style="gap:20px">
           <div class="form-group" style="grid-column:1 / -1">
             <label class="form-label">BOM <span style="color:#DC2626">*</span></label>
-            <input class="form-input" list="cp-bom-datalist" id="cp-bom-input" placeholder="Search BOM by Name or Number" />
+            <input class="form-input" list="cp-bom-datalist" id="cp-bom-input" placeholder="Search BOM by Number" />
             <datalist id="cp-bom-datalist">
               ${bomOptionsHtml}
             </datalist>
@@ -2086,7 +2103,7 @@ async function renderCreatePart(tc) {
 
   tc.querySelector('#cp-submit')?.addEventListener('click', async () => {
     const bomInputVal = tc.querySelector('#cp-bom-input')?.value?.trim();
-    const bomId = cpBomMap[bomInputVal];
+    const bomNumber = cpBomMap[bomInputVal];
     const name = tc.querySelector('#cp-name')?.value?.trim();
     const [groupCode, subGroupCode] = String(tc.querySelector('#cp-group')?.value || '').split(':');
     const categoryCode = tc.querySelector('#cp-cat')?.value?.trim();
@@ -2097,7 +2114,7 @@ async function renderCreatePart(tc) {
     const unitOfMeasure = tc.querySelector('#cp-uom')?.value?.trim();
     const releaseFlagStr = tc.querySelector('#cp-release-flag')?.value;
 
-    if (!bomInputVal || !bomId) return showToast('Please select a valid BOM from the list.', 'error');
+    if (!bomInputVal || !bomNumber) return showToast('Please select a valid BOM from the list.', 'error');
     if (!name) return showToast('Part name is required.', 'error');
     if (!categoryCode || !modelCode || !groupCode || !subGroupCode) return showToast('Category, model, and group are required.', 'error');
     if (releaseFlagStr === '' || releaseFlagStr === undefined || releaseFlagStr === null) return showToast('Release Flag is required.', 'error');
@@ -2106,7 +2123,7 @@ async function renderCreatePart(tc) {
     const generatedPartNumber = buildPartNumber({ categoryCode, modelCode, groupCode, subCode: subGroupCode, serial, machiningCode, revisionLetter, devStatusCode });
 
     const payload = {
-      bomId: bomId,
+      bomNumber: bomNumber,
       categoryCode,
       modelCode,
       groupCode,
@@ -2120,26 +2137,21 @@ async function renderCreatePart(tc) {
       makeBuy: Number(tc.querySelector('#cp-makebuy')?.value || 0),
       releaseFlag: Number(releaseFlagStr),
       propNonProp: Number(tc.querySelector('#cp-prop-nonprop')?.value || 0),
-      eeRelease: ((Number(groupCode || 0) * 10 + Number(subGroupCode || 0)) >= 50 && (Number(groupCode || 0) * 10 + Number(subGroupCode || 0)) <= 59) ? Number(tc.querySelector('#cp-ee-release')?.value || 0) : null,
+      eeRelease: ((Number(groupCode || 0) * 10 + Number(subGroupCode || 0)) >= 50 && (Number(groupCode || 0) * 10 + Number(subGroupCode || 0)) <= 59) ? Number(tc.querySelector('#cp-ee-release')?.value || 0) : 0,
       weight: Number(tc.querySelector('#cp-weight')?.value || 0),
       unitOfMeasure: unitOfMeasure || 'Each',
       gstCode: tc.querySelector('#cp-gstcode')?.value?.trim() || '',
       quantity: Number(tc.querySelector('#cp-quantity')?.value || 1),
       homologationStatus: Number(tc.querySelector('#cp-homo')?.value || 0),
-      assignedToDesignerUserId: Number(tc.querySelector('#cp-designer')?.value || 0)
+      assignedToDesignerUserId: tc.querySelector('#cp-designer')?.value ? Number(tc.querySelector('#cp-designer').value) : null
     };
+    console.log("Create Part Payload:", JSON.stringify(payload, null, 2));
 
     const submitBtn = tc.querySelector('#cp-submit');
     if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<span class="material-icons-outlined" style="font-size:16px">autorenew</span>Creating…'; }
 
     try {
-      const resp = await authFetch('/api/Parts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!resp.ok) throw new Error('Failed to create part');
-
+      await createPart(payload);
       showToast(`Part ${generatedPartNumber} created and submitted for review!`, 'success');
       setTimeout(() => navigateTo('workflows'), 1500);
     } catch (err) {
