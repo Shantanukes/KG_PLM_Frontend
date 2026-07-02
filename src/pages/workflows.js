@@ -147,15 +147,8 @@ export function renderWorkflows(container) {
         <h1>Workflows & Approvals</h1>
         <p>Monitor and manage active approval cycles, SLA tracking, and engineering release workflows.</p>
       </div>
-      <div class="page-actions">
-        <button class="btn btn-outline btn-sm" id="wf-archive">
-          <span class="material-icons-outlined" style="font-size:16px">history</span>Archive
-        </button>
-        <button class="btn btn-primary btn-sm" id="wf-new">
-          <span class="material-icons-outlined" style="font-size:16px">add</span>New Workflow
-        </button>
-      </div>
     </div>
+
 
     <div class="tabs" id="wf-tabs">
       <button class="tab-btn active" data-tab="my">My Tasks</button>
@@ -175,79 +168,6 @@ export function renderWorkflows(container) {
     });
   });
 
-  container.querySelector('#wf-new')?.addEventListener('click', () => {
-    showModal('New Workflow Instance',
-      `<div class="form-group"><label class="form-label">Entity Type <span style="color:#DC2626">*</span></label>
-        <input class="form-input" id="wf-entity-type" placeholder="e.g. ECR, ECN, Part" /></div>
-      <div class="form-group"><label class="form-label">Entity ID <span style="color:#DC2626">*</span></label>
-        <input class="form-input" type="number" id="wf-entity-id" placeholder="e.g. 123" /></div>
-      <div class="form-group"><label class="form-label">Assigned User ID <span style="color:#DC2626">*</span></label>
-        <input class="form-input" type="number" id="wf-assigned-user" placeholder="e.g. 1" /></div>
-      <div class="form-group"><label class="form-label">Title</label>
-        <input class="form-input" id="wf-title" placeholder="Enter task title" /></div>
-      <div class="form-group"><label class="form-label">Comments</label>
-        <textarea class="form-input" id="wf-comments" rows="2" placeholder="Enter comments..."></textarea></div>
-      <div class="form-group"><label class="form-label">Due Date</label>
-        <input class="form-input" type="date" id="wf-due-date" /></div>`,
-      `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
-      <button class="btn btn-primary" id="launch-workflow">Assign Workflow</button>`
-    );
-    setTimeout(() => {
-      document.getElementById('launch-workflow')?.addEventListener('click', async () => {
-        const entityType = document.getElementById('wf-entity-type')?.value?.trim();
-        const entityIdStr = document.getElementById('wf-entity-id')?.value?.trim();
-        const assignedUserStr = document.getElementById('wf-assigned-user')?.value?.trim();
-
-        if (!entityType || !entityIdStr || !assignedUserStr) {
-          return showToast('Entity Type, Entity ID, and Assigned User ID are required', 'error');
-        }
-
-        const title = document.getElementById('wf-title')?.value?.trim() || null;
-        const comments = document.getElementById('wf-comments')?.value?.trim() || null;
-        const dueDateInput = document.getElementById('wf-due-date')?.value;
-
-        let dueDate = null;
-        if (dueDateInput) {
-          dueDate = new Date(dueDateInput).toISOString().split('.')[0] + 'Z';
-        } else {
-          dueDate = new Date(Date.now() + 86400000).toISOString().split('.')[0] + 'Z';
-        }
-
-        const btn = document.getElementById('launch-workflow');
-        btn.disabled = true;
-        btn.textContent = 'Assigning...';
-
-        try {
-          const payload = {
-            entityType: entityType,
-            entityId: parseInt(entityIdStr, 10),
-            assignedUserId: parseInt(assignedUserStr, 10),
-            title: title,
-            comments: comments,
-            dueDate: dueDate
-          };
-
-          await assignWorkflow(payload);
-
-          document.querySelector('.modal-overlay')?.remove();
-          showToast(`Workflow task assigned successfully`, 'success');
-
-          // Trigger a refresh of the UI to show the newly assigned task
-          const activeTab = document.querySelector('#wf-tabs .tab-btn.active')?.dataset.tab;
-          if (activeTab) {
-            renderWFTab(document.querySelector('#wf-tab-content'), activeTab);
-          }
-        } catch (e) {
-          console.error(e);
-          showToast('Failed to assign workflow', 'error');
-          btn.disabled = false;
-          btn.textContent = 'Assign Workflow';
-        }
-      });
-    }, 50);
-  });
-
-  container.querySelector('#wf-archive')?.addEventListener('click', () => showToast('Loading archived workflows…', 'info'));
 
   renderWFTab(container.querySelector('#wf-tab-content'), 'my');
 }

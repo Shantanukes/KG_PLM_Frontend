@@ -989,7 +989,6 @@ function renderBomNav(tc) {
           </button>
           <div style="display:flex;gap:4px">
             <button class="btn btn-ghost btn-xs" id="btn-edit-part" title="Edit Part"><span class="material-icons-outlined" style="font-size:16px">edit</span></button>
-            <button class="btn btn-ghost btn-xs" id="btn-ecr-part" title="Raise ECR"><span class="material-icons-outlined" style="font-size:16px">published_with_changes</span></button>
             <button class="btn btn-ghost btn-xs" id="btn-where-used" title="Where Used"><span class="material-icons-outlined" style="font-size:16px">account_tree</span></button>
           </div>
         </div>
@@ -1097,13 +1096,6 @@ function renderBomNav(tc) {
         document.querySelector('.modal-overlay')?.remove();
       });
     }, 50);
-  });
-
-  tc.querySelector('#btn-ecr-part')?.addEventListener('click', () => {
-    const p = PARTS[selectedPartId];
-    if (!p) return showToast('Select a part first', 'warning');
-    showToast(`ECR initiated for ${p.pn}. Redirecting to Change Management…`, 'info');
-    setTimeout(() => navigateTo('change-mgmt'), 1200);
   });
 
   tc.querySelector('#btn-where-used')?.addEventListener('click', async () => {
@@ -1322,9 +1314,6 @@ function renderPartDetail(id) {
     </div>
     <div class="divider"></div>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-outline btn-sm btn-full" id="btn-initiate-ecr-detail">
-        <span class="material-icons-outlined" style="font-size:16px">published_with_changes</span>Raise ECR
-      </button>
       <button class="btn btn-primary btn-sm btn-full" id="btn-view-drawing-detail">
         <span class="material-icons-outlined" style="font-size:16px">description</span>View Drawings
       </button>
@@ -1335,10 +1324,6 @@ function renderPartDetail(id) {
       const name = e.target.closest('[data-name],[data-doc]')?.dataset.name || e.target.closest('[data-doc]')?.dataset.doc;
       if (name) showToast(`Opening ${name}…`, 'info');
     });
-  });
-  detailPanel.querySelector('#btn-initiate-ecr-detail')?.addEventListener('click', () => {
-    showToast(`ECR initiated for ${p.pn}`, 'info');
-    setTimeout(() => navigateTo('change-mgmt'), 1000);
   });
   detailPanel.querySelector('#btn-view-drawing-detail')?.addEventListener('click', () => navigateTo('documents'));
 }
