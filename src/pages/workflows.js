@@ -472,6 +472,9 @@ async function renderMyTasks(tc) {
           const currentUserRole = (getCurrentUserRole() || '').toLowerCase().replace(/\s/g, '');
           const isDesignerRole = currentUserRole === 'designer';
           const isDesignerRejected = isDesignerRole && ((data.status || '').toLowerCase() === 'rejected' || (data.result || '').toLowerCase() === 'rejected' || (data.currentApprovalStage || '').toLowerCase().includes('reject'));
+          const isProjectManagerPartStage = currentUserRole === 'projectmanager' && 
+            (resolvedType === 'PartNumber' || resolvedType === 'Part' || itemType === 'Part' || itemType === 'PartNumber') &&
+            ((data.role || '').toLowerCase() === 'projectmanager' || (data.currentApprovalStage || '').toLowerCase().includes('projectmanager') || (data.currentApprovalStage || '').toLowerCase().includes('pm'));
 
           const overlay = showModal('Current Approval Stage',
             `<div style="font-family:var(--font-mono); font-size:14px; line-height: 1.6; padding: 10px;">
@@ -524,6 +527,7 @@ async function renderMyTasks(tc) {
              </div>`,
             `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Close</button>
              ${(isApprovable && !isDesignerRole) ? `
+               ${isProjectManagerPartStage ? `<button class="btn btn-outline" style="border-color:#10B981;color:#10B981" id="release-flag-btn">Release Flag</button>` : ''}
                <button class="btn btn-danger" id="reject-stage-btn">Reject</button>
                <button class="btn btn-primary" id="approve-stage-btn">Approve</button>
              ` : ''}
@@ -533,6 +537,65 @@ async function renderMyTasks(tc) {
           );
 
           if (isApprovable) {
+            if (isProjectManagerPartStage) {
+              overlay.querySelector('#release-flag-btn')?.addEventListener('click', () => {
+                showModal('Update Release Flag',
+                  `<div class="form-group" style="margin-bottom: 12px;">
+                     <label class="form-label" style="font-size: 13px;">RELEASE FLAG <span style="color:#DC2626">*</span></label>
+                     <select class="form-select" id="release-flag-select">
+                       <option value="0">E-Release</option>
+                       <option value="1">FS-Release</option>
+                       <option value="2">Proto</option>
+                     </select>
+                   </div>
+                   <div class="form-group" style="margin-bottom: 12px;">
+                     <label class="form-label" style="font-size: 13px;">Comments</label>
+                     <textarea class="form-input" id="release-flag-comments" rows="2" placeholder="Enter comments..."></textarea>
+                   </div>`,
+                  `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+                   <button class="btn btn-primary" id="confirm-release-flag">Submit</button>`
+                );
+                setTimeout(() => {
+                  document.getElementById('confirm-release-flag')?.addEventListener('click', async (btnEv) => {
+                    const confBtn = btnEv.target;
+                    const flagSelect = document.getElementById('release-flag-select');
+                    const flagComments = document.getElementById('release-flag-comments');
+                    const newFlag = flagSelect ? parseInt(flagSelect.value, 10) : 0;
+                    const comments = flagComments ? flagComments.value.trim() : '';
+
+                    confBtn.textContent = 'Updating...';
+                    confBtn.disabled = true;
+                    try {
+                      const res = await authFetch('/api/Parts/' + entityId + '/convert-release-flag', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ newFlag, comments })
+                      });
+                      if (res.ok) {
+                        showToast('Release Flag updated successfully.', 'success');
+                        document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+                        const activeTabBtn = document.querySelector('#wf-tabs .tab-btn.active');
+                        if (activeTabBtn) {
+                          renderWFTab(document.querySelector('#wf-tab-content'), activeTabBtn.dataset.tab);
+                        } else {
+                          renderWorkflows(document.querySelector('.main-content') || document.body);
+                        }
+                      } else {
+                        const errText = await res.text();
+                        showToast('Unable to update Release Flag. ' + errText, 'error');
+                        confBtn.textContent = 'Submit';
+                        confBtn.disabled = false;
+                      }
+                    } catch (err) {
+                      showToast('Unable to update Release Flag.', 'error');
+                      confBtn.textContent = 'Submit';
+                      confBtn.disabled = false;
+                    }
+                  });
+                }, 50);
+              });
+            }
+
             const revertPmCheckbox = document.getElementById('stage-revert-pm-checkbox');
             const pmSelect = document.getElementById('stage-pm-dropdown');
 
@@ -883,6 +946,7 @@ async function renderInProgress(tc) {
              </div>`,
             `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Close</button>
              ${(isApprovable && !isDesignerRole) ? `
+               ${isProjectManagerPartStage ? `<button class="btn btn-outline" style="border-color:#10B981;color:#10B981" id="release-flag-btn">Release Flag</button>` : ''}
                <button class="btn btn-danger" id="reject-stage-btn">Reject</button>
                <button class="btn btn-primary" id="approve-stage-btn">Approve</button>
              ` : ''}
@@ -892,6 +956,65 @@ async function renderInProgress(tc) {
           );
 
           if (isApprovable) {
+            if (isProjectManagerPartStage) {
+              overlay.querySelector('#release-flag-btn')?.addEventListener('click', () => {
+                showModal('Update Release Flag',
+                  `<div class="form-group" style="margin-bottom: 12px;">
+                     <label class="form-label" style="font-size: 13px;">RELEASE FLAG <span style="color:#DC2626">*</span></label>
+                     <select class="form-select" id="release-flag-select">
+                       <option value="0">E-Release</option>
+                       <option value="1">FS-Release</option>
+                       <option value="2">Proto</option>
+                     </select>
+                   </div>
+                   <div class="form-group" style="margin-bottom: 12px;">
+                     <label class="form-label" style="font-size: 13px;">Comments</label>
+                     <textarea class="form-input" id="release-flag-comments" rows="2" placeholder="Enter comments..."></textarea>
+                   </div>`,
+                  `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+                   <button class="btn btn-primary" id="confirm-release-flag">Submit</button>`
+                );
+                setTimeout(() => {
+                  document.getElementById('confirm-release-flag')?.addEventListener('click', async (btnEv) => {
+                    const confBtn = btnEv.target;
+                    const flagSelect = document.getElementById('release-flag-select');
+                    const flagComments = document.getElementById('release-flag-comments');
+                    const newFlag = flagSelect ? parseInt(flagSelect.value, 10) : 0;
+                    const comments = flagComments ? flagComments.value.trim() : '';
+
+                    confBtn.textContent = 'Updating...';
+                    confBtn.disabled = true;
+                    try {
+                      const res = await authFetch('/api/Parts/' + entityId + '/convert-release-flag', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ newFlag, comments })
+                      });
+                      if (res.ok) {
+                        showToast('Release Flag updated successfully.', 'success');
+                        document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+                        const activeTabBtn = document.querySelector('#wf-tabs .tab-btn.active');
+                        if (activeTabBtn) {
+                          renderWFTab(document.querySelector('#wf-tab-content'), activeTabBtn.dataset.tab);
+                        } else {
+                          renderWorkflows(document.querySelector('.main-content') || document.body);
+                        }
+                      } else {
+                        const errText = await res.text();
+                        showToast('Unable to update Release Flag. ' + errText, 'error');
+                        confBtn.textContent = 'Submit';
+                        confBtn.disabled = false;
+                      }
+                    } catch (err) {
+                      showToast('Unable to update Release Flag.', 'error');
+                      confBtn.textContent = 'Submit';
+                      confBtn.disabled = false;
+                    }
+                  });
+                }, 50);
+              });
+            }
+
             const revertPmCheckbox = document.getElementById('stage-revert-pm-checkbox');
             const pmSelect = document.getElementById('stage-pm-dropdown');
 
