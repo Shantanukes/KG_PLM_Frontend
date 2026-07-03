@@ -32,10 +32,7 @@ export function renderDocuments(container) {
 
     <div class="filter-bar">
       <div class="filter-chip active" data-type="">All Types</div>
-      <div class="filter-chip" data-type="DWG">2D CAD (DXF/DWG)</div>
-      <div class="filter-chip" data-type="STEP">3D CAD (STEP)</div>
       <div class="filter-chip" data-type="PDF">PDF Drawings</div>
-      <div class="filter-chip" data-type="BIN">Firmware (BIN/HEX)</div>
       <div class="filter-chip" data-type="Cert">Compliance Certs</div>
     </div>
 

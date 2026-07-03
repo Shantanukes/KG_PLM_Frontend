@@ -23,6 +23,30 @@ function getCurrentUserRole() {
   }
 }
 
+function normalizeRole(role) {
+  return (role || '').toString().toLowerCase().replace(/\s/g, '');
+}
+
+function isBomType(type) {
+  return type === 'BOM' || type === 'BOMEntity' || (type || '').toString().toLowerCase().includes('bom');
+}
+
+function getCurrentStepText(item) {
+  return item?.currentApprovalStage || item?.bomStatus || item?.stage || item?.status || 'Pending';
+}
+
+function getStageBadgeColor(step) {
+  const normalized = (step || '').toString().toLowerCase();
+  if (normalized.includes('completed') || normalized.includes('approved') || normalized.includes('release')) return '#10B981';
+  if (normalized.includes('reject')) return '#EF4444';
+  return '#F59E0B';
+}
+
+function canCurrentUserActOnApproval({ isApprovable, isDesignerRole, isHomologationRole, isBomResolved, currentUserRole }) {
+  if (!isApprovable || isDesignerRole || isHomologationRole) return false;
+  return !(isBomResolved && currentUserRole === 'projectmanager');
+}
+
 function getRuntimeState() {
   try {
     return JSON.parse(localStorage.getItem(RUNTIME_KEY) || '{}');
@@ -187,15 +211,16 @@ async function renderMyTasks(tc) {
     const fetchedTasks = Array.isArray(apiData) ? apiData : (apiData?.items || []);
 
     tasks = fetchedTasks.map(t => {
+      const taskType = t.approvalType || t.entityType || 'Workflow';
       return {
         id: t.id ? `WF-${t.id}` : `WF-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
         subject: t.title || 'Untitled Task',
-        type: t.entityType || 'Workflow',
-        step: t.status || 'Pending',
+        type: taskType,
+        step: getCurrentStepText(t),
         assignee: t.assignedUserName || t.assignedByUserName || 'System',
         started: t.createdAt ? new Date(t.createdAt).toLocaleDateString() : 'N/A',
-        ref: t.entityReference || '-',
-        entityId: t.entityId
+        ref: t.entityReference || t.bomNumber || t.partNumber || '-',
+        entityId: t.entityId || t.bomId || t.partId
       };
     });
   } catch (err) {
@@ -265,7 +290,7 @@ async function renderMyTasks(tc) {
     const role = (getCurrentUserRole() || '').toLowerCase();
     const isHomologation = role === 'homologation' || role === '14';
     const isDone = (t.step === 'Completed' || t.step === 'Approved' || t.step === 'Rejected');
-    const bgColor = (t.step === 'Completed' || t.step === 'Approved') ? '#10B981' : (t.step === 'Rejected' ? '#EF4444' : '#F59E0B');
+    const bgColor = getStageBadgeColor(t.step);
     const text = t.step === 'Completed' ? 'Approved' : t.step;
     return `
               <tr style="${isDone ? 'opacity: 0.7; background: #F9FAFB;' : ''}">
@@ -383,7 +408,7 @@ async function renderMyTasks(tc) {
 
       try {
         const itemType = e.target.dataset.type;
-        const isBomItem = itemType === 'BOM' || itemType === 'BOMEntity' || (itemType || '').toLowerCase().includes('bom');
+        const isBomItem = isBomType(itemType);
         const res = isBomItem
           ? await authFetch('/api/BOM/' + entityId + '/approval-status')
           : await authFetch('/api/Parts/' + entityId + '/current-approval-stage');
@@ -391,34 +416,36 @@ async function renderMyTasks(tc) {
         if (res.ok) {
           const data = await res.json();
           const resolvedType = data.approvalType || (isBomItem ? 'BOM' : itemType);
-          const isBomResolved = resolvedType === 'BOM' || resolvedType === 'BOMEntity' || (resolvedType || '').toLowerCase().includes('bom');
+          const isBomResolved = isBomType(resolvedType);
           const isApprovable = resolvedType === 'PartNumber' || resolvedType?.toLowerCase() === 'drawing' || isBomResolved;
-          const currentUserRole = (getCurrentUserRole() || '').toLowerCase().replace(/\s/g, '');
+          const currentUserRole = normalizeRole(getCurrentUserRole());
           const isDesignerRole = currentUserRole === 'designer';
           const isHomologationRole = currentUserRole === 'homologation' || currentUserRole === '14';
           const isDesignerRejected = isDesignerRole && ((data.status || '').toLowerCase() === 'rejected' || (data.result || '').toLowerCase() === 'rejected' || (data.currentApprovalStage || '').toLowerCase().includes('reject'));
           const isProjectManagerPartStage = currentUserRole === 'projectmanager' &&
             (resolvedType === 'PartNumber' || resolvedType === 'Part' || itemType === 'Part' || itemType === 'PartNumber') &&
             ((data.role || '').toLowerCase() === 'projectmanager' || (data.currentApprovalStage || '').toLowerCase().includes('projectmanager') || (data.currentApprovalStage || '').toLowerCase().includes('pm'));
+          const canActOnApproval = canCurrentUserActOnApproval({ isApprovable, isDesignerRole, isHomologationRole, isBomResolved, currentUserRole });
+          const currentStage = data.currentApprovalStage || data.bomStatus || 'N/A';
 
           const overlay = showModal('Current Approval Stage',
             `<div style="font-family:var(--font-mono); font-size:14px; line-height: 1.6; padding: 10px;">
                <div style="margin-bottom: 12px;"><strong>Approval Type:</strong> ${resolvedType || 'N/A'}</div>
-               <div style="margin-bottom: 12px;"><strong>Current Stage:</strong> <span class="badge" style="background:${(data.currentApprovalStage || data.bomStatus || '').toLowerCase().includes('completed') || (data.currentApprovalStage || data.bomStatus || '').toLowerCase().includes('approved') ? '#10B981' : (data.currentApprovalStage || data.bomStatus || '').toLowerCase().includes('reject') ? '#EF4444' : '#F59E0B'};color:#fff;">${data.currentApprovalStage || data.bomStatus || 'N/A'}</span></div>
-               ${resolvedType === 'BOM' ? `
+               <div style="margin-bottom: 12px;"><strong>Current Step:</strong> <span class="badge" style="background:${getStageBadgeColor(currentStage)};color:#fff;">${currentStage}</span></div>
+               ${isBomResolved ? `
                  <div style="margin-bottom: 12px;"><strong>Part:</strong> ${data.partNumber || '-'} (${data.partName || '-'})</div>
                  <div><strong>Stages:</strong> ${data.totalStagesCompleted ?? 0} completed, ${data.totalStagesRemaining ?? 0} remaining</div>
                ` : `
                  <div style="margin-bottom: 12px;"><strong>Assigned To:</strong> ${data.name || 'N/A'}</div>
                  <div><strong>Role:</strong> ${data.role || 'N/A'}</div>
                `}
-               ${(isApprovable && !isDesignerRole && !isHomologationRole) ? `
+               ${canActOnApproval ? `
                  <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border-light);" />
                  <div class="form-group" style="margin-bottom: 12px;">
                    <label class="form-label">Comments</label>
                    <textarea class="form-input" id="stage-comments" rows="2" placeholder="Enter approval/rejection comments..."></textarea>
                  </div>
-                 ${resolvedType !== 'BOM' ? `
+                 ${!isBomResolved ? `
                  <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
                    <input type="checkbox" id="stage-revert-designer" />
                    <label for="stage-revert-designer" style="font-size: 13px;">Revert to Designer </label>
@@ -451,7 +478,7 @@ async function renderMyTasks(tc) {
                ` : ''}
              </div>`,
             `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Close</button>
-             ${(isApprovable && !isDesignerRole && !isHomologationRole) ? `
+             ${canActOnApproval ? `
                ${isProjectManagerPartStage ? `<button class="btn btn-outline" style="border-color:#10B981;color:#10B981" id="release-flag-btn">Release Flag</button>` : ''}
                <button class="btn btn-danger" id="reject-stage-btn">Reject</button>
                <button class="btn btn-primary" id="approve-stage-btn">Approve</button>
@@ -461,7 +488,7 @@ async function renderMyTasks(tc) {
              ` : ''}`
           );
 
-          if (isApprovable) {
+          if (canActOnApproval || isDesignerRejected) {
             if (isProjectManagerPartStage) {
               overlay.querySelector('#release-flag-btn')?.addEventListener('click', () => {
                 showModal('Update Release Flag',
@@ -596,7 +623,7 @@ async function renderMyTasks(tc) {
                   protoStudyUserId,
                   protoApprovalUserId
                 };
-                if (resolvedType === 'BOM') {
+                if (isBomResolved) {
                   await approveBom(entityId, payload);
                 } else if (resolvedType === 'PartNumber') {
                   await approvePartNumber(entityId, payload);
@@ -646,7 +673,7 @@ async function renderMyTasks(tc) {
                   protoStudyUserId,
                   protoApprovalUserId
                 };
-                if (resolvedType === 'BOM') {
+                if (isBomResolved) {
                   await rejectBom(entityId, payload);
                 } else if (resolvedType === 'PartNumber') {
                   await rejectPartNumber(entityId, payload);
@@ -729,11 +756,11 @@ async function renderInProgress(tc) {
         id: t.approvalId ? `APP-${t.approvalId}` : `WF-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
         subject: `Review ${t.approvalType || 'Approval'}: ${t.partName || ''} — ${t.stage || ''}`,
         type: t.approvalType || 'Workflow',
-        step: t.currentApprovalStage || t.status || t.stage || 'Pending',
+        step: getCurrentStepText(t),
         assignee: 'Me',
         started: t.createdAt ? new Date(t.createdAt).toLocaleDateString() : 'N/A',
-        ref: t.partNumber || '-',
-        entityId: t.partId
+        ref: t.partNumber || t.bomNumber || '-',
+        entityId: t.entityId || t.bomId || t.partId
       };
     });
   } catch (err) {
@@ -752,7 +779,7 @@ async function renderInProgress(tc) {
                 <td style="font-family:var(--font-mono);font-weight:600;">${t.id}</td>
                 <td style="max-width:280px;white-space:normal;line-height:1.4;">${t.subject}</td>
                 <td><span class="tag">${t.type}</span></td>
-                <td><span class="badge" style="background:${(t.step || '').toLowerCase().includes('completed') || (t.step || '').toLowerCase().includes('approved') ? '#10B981' : (t.step || '').toLowerCase().includes('reject') ? '#EF4444' : '#F59E0B'}; color:#fff; border:none; padding:4px 8px; border-radius:4px;">${t.step}</span></td>
+                <td><span class="badge" style="background:${getStageBadgeColor(t.step)}; color:#fff; border:none; padding:4px 8px; border-radius:4px;">${t.step}</span></td>
                 <td>${t.assignee}</td>
                 <td>${t.started}</td>
                 <td style="font-family:var(--font-mono); font-size:0.857rem;">${t.ref}</td>
@@ -760,7 +787,7 @@ async function renderInProgress(tc) {
                   <button class="btn btn-outline btn-xs view-wf-btn" data-id="${t.id}" style="margin-right:4px;">View</button>
                   ${(t.type === 'UploadDrawing' || t.type === 'ReUploadDrawing') ?
       `<button class="btn btn-primary btn-xs nav-upload-btn" data-part="${t.ref !== '-' ? t.ref : t.entityId}">Upload Drawing</button>` :
-      ((t.type === 'Part' || t.type === 'PartNumber' || t.type?.toLowerCase() === 'drawing' || t.type === 'BOM') ? `<button class="btn btn-outline btn-xs view-stage-btn" data-id="${t.entityId}" data-type="${t.type}">View Stage</button>` : '')}
+      ((t.type === 'Part' || t.type === 'PartNumber' || t.type?.toLowerCase() === 'drawing' || isBomType(t.type)) ? `<button class="btn btn-outline btn-xs view-stage-btn" data-id="${t.entityId}" data-type="${t.type}">View Stage</button>` : '')}
                 </td>
               </tr>
             `).join('') : '<tr><td colspan="8" class="text-center text-secondary py-4" style="text-align: center;">No Pending workflows</td></tr>'}
@@ -791,37 +818,45 @@ async function renderInProgress(tc) {
 
       try {
         const itemType = e.target.dataset.type;
-        const res = itemType === 'BOM'
+        const isBomItem = isBomType(itemType);
+        const res = isBomItem
           ? await authFetch('/api/BOM/' + entityId + '/approval-status')
           : await authFetch('/api/Parts/' + entityId + '/current-approval-stage');
 
         if (res.ok) {
           const data = await res.json();
-          const resolvedType = data.approvalType || itemType;
-          const isApprovable = resolvedType === 'PartNumber' || resolvedType?.toLowerCase() === 'drawing' || resolvedType === 'BOM';
+          const resolvedType = data.approvalType || (isBomItem ? 'BOM' : itemType);
+          const isBomResolved = isBomType(resolvedType);
+          const isApprovable = resolvedType === 'PartNumber' || resolvedType?.toLowerCase() === 'drawing' || isBomResolved;
 
-          const currentUserRole = (getCurrentUserRole() || '').toLowerCase().replace(/\s/g, '');
+          const currentUserRole = normalizeRole(getCurrentUserRole());
           const isDesignerRole = currentUserRole === 'designer';
+          const isHomologationRole = currentUserRole === 'homologation' || currentUserRole === '14';
           const isDesignerRejected = isDesignerRole && ((data.status || '').toLowerCase() === 'rejected' || (data.result || '').toLowerCase() === 'rejected' || (data.currentApprovalStage || '').toLowerCase().includes('reject'));
+          const isProjectManagerPartStage = currentUserRole === 'projectmanager' &&
+            (resolvedType === 'PartNumber' || resolvedType === 'Part' || itemType === 'Part' || itemType === 'PartNumber') &&
+            ((data.role || '').toLowerCase() === 'projectmanager' || (data.currentApprovalStage || '').toLowerCase().includes('projectmanager') || (data.currentApprovalStage || '').toLowerCase().includes('pm'));
+          const canActOnApproval = canCurrentUserActOnApproval({ isApprovable, isDesignerRole, isHomologationRole, isBomResolved, currentUserRole });
+          const currentStage = data.currentApprovalStage || data.bomStatus || 'N/A';
 
           const overlay = showModal('Current Approval Stage',
             `<div style="font-family:var(--font-mono); font-size:14px; line-height: 1.6; padding: 10px;">
                <div style="margin-bottom: 12px;"><strong>Approval Type:</strong> ${resolvedType || 'N/A'}</div>
-               <div style="margin-bottom: 12px;"><strong>Current Stage:</strong> <span class="badge" style="background:${(data.currentApprovalStage || data.bomStatus || '').toLowerCase().includes('completed') || (data.currentApprovalStage || data.bomStatus || '').toLowerCase().includes('approved') ? '#10B981' : (data.currentApprovalStage || data.bomStatus || '').toLowerCase().includes('reject') ? '#EF4444' : '#F59E0B'};color:#fff;">${data.currentApprovalStage || data.bomStatus || 'N/A'}</span></div>
-               ${resolvedType === 'BOM' ? `
+               <div style="margin-bottom: 12px;"><strong>Current Step:</strong> <span class="badge" style="background:${getStageBadgeColor(currentStage)};color:#fff;">${currentStage}</span></div>
+               ${isBomResolved ? `
                  <div style="margin-bottom: 12px;"><strong>Part:</strong> ${data.partNumber || '-'} (${data.partName || '-'})</div>
                  <div><strong>Stages:</strong> ${data.totalStagesCompleted ?? 0} completed, ${data.totalStagesRemaining ?? 0} remaining</div>
                ` : `
                  <div style="margin-bottom: 12px;"><strong>Assigned To:</strong> ${data.name || 'N/A'}</div>
                  <div><strong>Role:</strong> ${data.role || 'N/A'}</div>
                `}
-               ${(isApprovable && !isDesignerRole) ? `
+               ${canActOnApproval ? `
                  <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border-light);" />
                  <div class="form-group" style="margin-bottom: 12px;">
                    <label class="form-label">Comments</label>
                    <textarea class="form-input" id="stage-comments" rows="2" placeholder="Enter approval/rejection comments..."></textarea>
                  </div>
-                 ${resolvedType !== 'BOM' ? `
+                 ${!isBomResolved ? `
                  <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
                    <input type="checkbox" id="stage-revert-designer" />
                    <label for="stage-revert-designer" style="font-size: 13px;">Revert to Designer </label>
@@ -854,7 +889,7 @@ async function renderInProgress(tc) {
                ` : ''}
              </div>`,
             `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Close</button>
-             ${(isApprovable && !isDesignerRole) ? `
+             ${canActOnApproval ? `
                ${isProjectManagerPartStage ? `<button class="btn btn-outline" style="border-color:#10B981;color:#10B981" id="release-flag-btn">Release Flag</button>` : ''}
                <button class="btn btn-danger" id="reject-stage-btn">Reject</button>
                <button class="btn btn-primary" id="approve-stage-btn">Approve</button>
@@ -864,7 +899,7 @@ async function renderInProgress(tc) {
              ` : ''}`
           );
 
-          if (isApprovable) {
+          if (canActOnApproval || isDesignerRejected) {
             if (isProjectManagerPartStage) {
               overlay.querySelector('#release-flag-btn')?.addEventListener('click', () => {
                 showModal('Update Release Flag',
@@ -999,7 +1034,7 @@ async function renderInProgress(tc) {
                   protoStudyUserId,
                   protoApprovalUserId
                 };
-                if (resolvedType === 'BOM') {
+                if (isBomResolved) {
                   await approveBom(entityId, payload);
                 } else if (resolvedType === 'PartNumber') {
                   await approvePartNumber(entityId, payload);
@@ -1049,7 +1084,7 @@ async function renderInProgress(tc) {
                   protoStudyUserId,
                   protoApprovalUserId
                 };
-                if (resolvedType === 'BOM') {
+                if (isBomResolved) {
                   await rejectBom(entityId, payload);
                 } else if (resolvedType === 'PartNumber') {
                   await rejectPartNumber(entityId, payload);

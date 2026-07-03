@@ -189,96 +189,477 @@ function runImpactAnalysis() {
     </div>`, '');
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  ECN RELEASE FORM  (matches RDECN PDF format)
+// ─────────────────────────────────────────────────────────────────────────────
 function renderNewECNForm(tc) {
+  // Local state
+  let affectedPartNumbers = [];   // array of part-number strings entered by user
+  let resolvedPartIds     = [];   // numeric IDs returned by the preview-affected-boms API
+  let deletedParts = [];          // { partNumber, description, quantity }
+  let addedParts = [];            // { partNumber, description, quantity, revisionDate }
+
   tc.innerHTML = `
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title"><span class="material-icons-outlined">edit_note</span>ECN Release</div>
+    <div class="card" style="max-width:1100px;margin:0 auto;">
+
+      <!-- ── ECN Header Banner ── -->
+      <div style="background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);border-radius:var(--radius-lg) var(--radius-lg) 0 0;padding:20px 28px;display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <span class="material-icons-outlined" style="font-size:32px;color:#fff;opacity:.9">description</span>
+          <div>
+            <div style="color:#fff;font-size:1.15rem;font-weight:700;letter-spacing:.3px;">Engineering Change Notice (ECN)</div>
+            <div style="color:rgba(255,255,255,.7);font-size:0.8rem;margin-top:2px;">Release &amp; Implementation Form</div>
+          </div>
+        </div>
+        <div style="color:rgba(255,255,255,.85);font-size:0.8rem;text-align:right;">
+          <div style="font-weight:600;font-size:1rem;">Kinetic Green Energy Pvt. Ltd.</div>
+          <div style="opacity:.8">DOC: KG-ECN-FORM-01</div>
+        </div>
       </div>
-      <div class="card-body">
-        <div class="grid-2" style="gap:20px">
-          <div class="form-group"><label class="form-label">Triggering Part ID <span style="color:#DC2626">*</span></label>
-            <input type="number" class="form-input" id="ecn-triggering-part" placeholder="e.g. 101" /></div>
-          
-          <div class="form-group"><label class="form-label">Prepared By Name <span style="color:#DC2626">*</span></label>
-            <input type="text" class="form-input" id="ecn-prepared-name" placeholder="Name" /></div>
-            
-          <div class="form-group"><label class="form-label">Prepared By Role <span style="color:#DC2626">*</span></label>
-            <input type="text" class="form-input" id="ecn-prepared-role" placeholder="Role" /></div>
 
-          <div class="form-group"><label class="form-label">Checked By Name <span style="color:#DC2626">*</span></label>
-            <input type="text" class="form-input" id="ecn-checked-name" placeholder="Name" /></div>
+      <div class="card-body" style="padding:28px;">
 
-          <div class="form-group"><label class="form-label">Checked By Role <span style="color:#DC2626">*</span></label>
-            <input type="text" class="form-input" id="ecn-checked-role" placeholder="Role" /></div>
-            
-          <div class="form-group" style="grid-column:1/-1"><label class="form-label">Reason <span style="color:#DC2626">*</span></label>
-            <textarea class="form-input" id="ecn-reason" rows="2" placeholder="Reason for change..." style="resize:vertical"></textarea></div>
+        <!-- ── SECTION 1: ECN IDENTIFICATION ── -->
+        <div style="border:1.5px solid var(--border-main);border-radius:var(--radius-md);overflow:hidden;margin-bottom:22px;">
+          <div style="background:var(--bg-muted);padding:8px 16px;font-weight:700;font-size:0.78rem;letter-spacing:.8px;color:var(--text-secondary);text-transform:uppercase;border-bottom:1px solid var(--border-main);">
+            Section 1 — ECN Identification
+          </div>
+          <div style="padding:16px 20px;">
+            <div class="grid-2" style="gap:16px;">
+              <div class="form-group" style="margin:0">
+                <label class="form-label">ECN Date</label>
+                <input type="date" class="form-input" id="ecn-date" value="${new Date().toISOString().slice(0,10)}" />
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Vehicle Model / Platform</label>
+                <input type="text" class="form-input" id="ecn-model" placeholder="e.g. Safar Smart, E-Luna Go…" />
+              </div>
+            </div>
+          </div>
+        </div>
 
-          <div class="form-group" style="grid-column:1/-1"><label class="form-label">Change Details <span style="color:#DC2626">*</span></label>
-            <textarea class="form-input" id="ecn-change-details" rows="3" placeholder="Change details..." style="resize:vertical"></textarea></div>
-            
-          <div class="form-group" style="grid-column:1/-1"><label class="form-label">Remarks</label>
-            <textarea class="form-input" id="ecn-remarks" rows="2" placeholder="Remarks..." style="resize:vertical"></textarea></div>
+        <!-- ── SECTION 2: AFFECTED PART NUMBERS (Search / Tag) ── -->
+        <div style="border:1.5px solid var(--border-main);border-radius:var(--radius-md);overflow:hidden;margin-bottom:22px;">
+          <div style="background:var(--bg-muted);padding:8px 16px;font-weight:700;font-size:0.78rem;letter-spacing:.8px;color:var(--text-secondary);text-transform:uppercase;border-bottom:1px solid var(--border-main);">
+            Section 2 — Affected Part Numbers <span style="color:#DC2626">*</span>
+          </div>
+          <div style="padding:16px 20px;">
+            <p style="font-size:0.82rem;color:var(--text-secondary);margin:0 0 12px;">Search and add part numbers. Click "Preview Affected BOMs" to see which BOMs are impacted.</p>
+            <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;">
+              <div style="flex:1;min-width:200px;">
+                <input type="text" class="form-input" id="ecn-part-search-input"
+                  placeholder="Type part number and press Enter or click Add…"
+                  autocomplete="off" />
+              </div>
+              <button class="btn btn-outline btn-sm" id="ecn-add-part-btn" style="white-space:nowrap;flex-shrink:0;">
+                <span class="material-icons-outlined" style="font-size:15px">add</span> Add Part
+              </button>
+              <button class="btn btn-primary btn-sm" id="ecn-preview-bom-btn" style="white-space:nowrap;flex-shrink:0;">
+                <span class="material-icons-outlined" style="font-size:15px">search</span> Preview Affected BOMs
+              </button>
+            </div>
+            <!-- Tag chips -->
+            <div id="ecn-part-chips" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;min-height:28px;"></div>
+            <!-- BOM Preview Results -->
+            <div id="ecn-bom-preview" style="margin-top:14px;display:none;">
+              <div style="font-size:0.78rem;font-weight:700;color:var(--text-secondary);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;">
+                Affected BOMs Preview
+              </div>
+              <div id="ecn-bom-preview-content"></div>
+            </div>
+          </div>
+        </div>
 
-          <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Implementation Options</label>
-            <div style="display:flex; flex-wrap:wrap; gap:16px; margin-top:8px;">
-              <label style="display:flex; align-items:center; gap:8px;">
-                <input type="checkbox" id="ecn-consume-stock" /> To Be Implemented After Consuming Stock
+        <!-- ── SECTION 3: REASON & CHANGE DETAILS ── -->
+        <div style="border:1.5px solid var(--border-main);border-radius:var(--radius-md);overflow:hidden;margin-bottom:22px;">
+          <div style="background:var(--bg-muted);padding:8px 16px;font-weight:700;font-size:0.78rem;letter-spacing:.8px;color:var(--text-secondary);text-transform:uppercase;border-bottom:1px solid var(--border-main);">
+            Section 3 — Reason &amp; Change Details
+          </div>
+          <div style="padding:16px 20px;display:flex;flex-direction:column;gap:14px;">
+            <div class="form-group" style="margin:0">
+              <label class="form-label">Reason for Change <span style="color:#DC2626">*</span></label>
+              <textarea class="form-input" id="ecn-reason" rows="3"
+                placeholder="Describe the reason for this engineering change (quality issue, cost reduction, design improvement, regulatory compliance…)"
+                style="resize:vertical"></textarea>
+            </div>
+            <div class="form-group" style="margin:0">
+              <label class="form-label">Change Details <span style="color:#DC2626">*</span></label>
+              <textarea class="form-input" id="ecn-change-details" rows="4"
+                placeholder="Detailed description of the change — what is changing, where, and how it differs from the current configuration…"
+                style="resize:vertical"></textarea>
+            </div>
+            <div class="form-group" style="margin:0">
+              <label class="form-label">Remarks</label>
+              <textarea class="form-input" id="ecn-remarks" rows="2"
+                placeholder="Any additional remarks, notes, or special instructions…"
+                style="resize:vertical"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── SECTION 4: IMPLEMENTATION OPTIONS ── -->
+        <div style="border:1.5px solid var(--border-main);border-radius:var(--radius-md);overflow:hidden;margin-bottom:22px;">
+          <div style="background:var(--bg-muted);padding:8px 16px;font-weight:700;font-size:0.78rem;letter-spacing:.8px;color:var(--text-secondary);text-transform:uppercase;border-bottom:1px solid var(--border-main);">
+            Section 4 — Implementation Options
+          </div>
+          <div style="padding:16px 20px;">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;">
+              <label class="ecn-check-label" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border-light);border-radius:var(--radius-md);cursor:pointer;">
+                <input type="checkbox" id="ecn-consume-stock" style="width:16px;height:16px;accent-color:#2563eb;flex-shrink:0;" />
+                <span style="font-size:0.875rem;">To Be Implemented After Consuming Stock</span>
               </label>
-              <label style="display:flex; align-items:center; gap:8px;">
-                <input type="checkbox" id="ecn-lead-time" /> To Be Implemented After Lead Time
+              <label class="ecn-check-label" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border-light);border-radius:var(--radius-md);cursor:pointer;">
+                <input type="checkbox" id="ecn-lead-time" style="width:16px;height:16px;accent-color:#2563eb;flex-shrink:0;" />
+                <span style="font-size:0.875rem;">To Be Implemented After Lead Time</span>
               </label>
-              <label style="display:flex; align-items:center; gap:8px;">
-                <input type="checkbox" id="ecn-immediate" /> To Be Implemented With Immediate Effect
+              <label class="ecn-check-label" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border-light);border-radius:var(--radius-md);cursor:pointer;">
+                <input type="checkbox" id="ecn-immediate" style="width:16px;height:16px;accent-color:#2563eb;flex-shrink:0;" />
+                <span style="font-size:0.875rem;">To Be Implemented With Immediate Effect</span>
               </label>
-              <label style="display:flex; align-items:center; gap:8px;">
-                <input type="checkbox" id="ecn-running-change" /> Running Change
+              <label class="ecn-check-label" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border-light);border-radius:var(--radius-md);cursor:pointer;">
+                <input type="checkbox" id="ecn-running-change" style="width:16px;height:16px;accent-color:#2563eb;flex-shrink:0;" />
+                <span style="font-size:0.875rem;">Running Change</span>
               </label>
-              <label style="display:flex; align-items:center; gap:8px;">
-                <input type="checkbox" id="ecn-field-parts" /> Field Parts To Be Modified
+              <label class="ecn-check-label" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border-light);border-radius:var(--radius-md);cursor:pointer;">
+                <input type="checkbox" id="ecn-field-parts" style="width:16px;height:16px;accent-color:#2563eb;flex-shrink:0;" />
+                <span style="font-size:0.875rem;">Field Parts To Be Modified</span>
               </label>
-              <label style="display:flex; align-items:center; gap:8px;">
-                <input type="checkbox" id="ecn-replace-vehicle-parts" /> Replace Field Vehicle Parts
+              <label class="ecn-check-label" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border-light);border-radius:var(--radius-md);cursor:pointer;">
+                <input type="checkbox" id="ecn-replace-vehicle-parts" style="width:16px;height:16px;accent-color:#2563eb;flex-shrink:0;" />
+                <span style="font-size:0.875rem;">Replace Field Vehicle Parts</span>
               </label>
             </div>
           </div>
         </div>
-        <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px">
-          <button class="btn btn-outline" id="ecn-save-draft">Save Draft</button>
+
+        <!-- ── SECTION 5: DELETED / REPLACED PARTS ── -->
+        <div style="border:1.5px solid var(--border-main);border-radius:var(--radius-md);overflow:hidden;margin-bottom:22px;">
+          <div style="background:var(--bg-muted);padding:8px 16px;font-weight:700;font-size:0.78rem;letter-spacing:.8px;color:var(--text-secondary);text-transform:uppercase;border-bottom:1px solid var(--border-main);display:flex;align-items:center;justify-content:space-between;">
+            <span>Section 5 — Deleted / Replaced Parts</span>
+            <button class="btn btn-ghost btn-xs" id="ecn-add-deleted-row" style="font-size:0.75rem;text-transform:none;">
+              <span class="material-icons-outlined" style="font-size:14px">add</span> Add Row
+            </button>
+          </div>
+          <div style="overflow-x:auto;">
+            <table class="data-table" style="min-width:580px;">
+              <thead>
+                <tr>
+                  <th style="width:44px;text-align:center">#</th>
+                  <th>Part Number</th>
+                  <th>Description</th>
+                  <th style="width:100px">Quantity</th>
+                  <th style="width:48px"></th>
+                </tr>
+              </thead>
+              <tbody id="ecn-deleted-parts-body">
+                <tr id="ecn-deleted-empty-row">
+                  <td colspan="5" style="text-align:center;color:var(--text-tertiary);font-size:0.82rem;padding:18px;">
+                    No deleted/replaced parts added yet — click "+ Add Row" above.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ── SECTION 6: NEW / ADDED PARTS ── -->
+        <div style="border:1.5px solid var(--border-main);border-radius:var(--radius-md);overflow:hidden;margin-bottom:22px;">
+          <div style="background:var(--bg-muted);padding:8px 16px;font-weight:700;font-size:0.78rem;letter-spacing:.8px;color:var(--text-secondary);text-transform:uppercase;border-bottom:1px solid var(--border-main);display:flex;align-items:center;justify-content:space-between;">
+            <span>Section 6 — New / Added Parts</span>
+            <button class="btn btn-ghost btn-xs" id="ecn-add-added-row" style="font-size:0.75rem;text-transform:none;">
+              <span class="material-icons-outlined" style="font-size:14px">add</span> Add Row
+            </button>
+          </div>
+          <div style="overflow-x:auto;">
+            <table class="data-table" style="min-width:680px;">
+              <thead>
+                <tr>
+                  <th style="width:44px;text-align:center">#</th>
+                  <th>Part Number</th>
+                  <th>Description</th>
+                  <th style="width:100px">Quantity</th>
+                  <th style="width:150px">Revision Date</th>
+                  <th style="width:48px"></th>
+                </tr>
+              </thead>
+              <tbody id="ecn-added-parts-body">
+                <tr id="ecn-added-empty-row">
+                  <td colspan="6" style="text-align:center;color:var(--text-tertiary);font-size:0.82rem;padding:18px;">
+                    No new/added parts added yet — click "+ Add Row" above.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ── SECTION 7: AUTHORISATION ── -->
+        <div style="border:1.5px solid var(--border-main);border-radius:var(--radius-md);overflow:hidden;margin-bottom:28px;">
+          <div style="background:var(--bg-muted);padding:8px 16px;font-weight:700;font-size:0.78rem;letter-spacing:.8px;color:var(--text-secondary);text-transform:uppercase;border-bottom:1px solid var(--border-main);">
+            Section 7 — Authorisation
+          </div>
+          <div style="padding:16px 20px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+              <!-- Prepared By -->
+              <div style="border:1px solid var(--border-light);border-radius:var(--radius-md);padding:16px;">
+                <div style="font-weight:600;font-size:0.78rem;color:var(--brand-primary, #2563eb);margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:6px;">
+                  <span class="material-icons-outlined" style="font-size:15px">edit</span> Prepared By
+                </div>
+                <div class="form-group" style="margin-bottom:12px">
+                  <label class="form-label">Name <span style="color:#DC2626">*</span></label>
+                  <input type="text" class="form-input" id="ecn-prepared-name" placeholder="Full name" />
+                </div>
+                <div class="form-group" style="margin:0">
+                  <label class="form-label">Designation / Role <span style="color:#DC2626">*</span></label>
+                  <input type="text" class="form-input" id="ecn-prepared-role" placeholder="e.g. Design Engineer" />
+                </div>
+              </div>
+              <!-- Checked By -->
+              <div style="border:1px solid var(--border-light);border-radius:var(--radius-md);padding:16px;">
+                <div style="font-weight:600;font-size:0.78rem;color:#059669;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:6px;">
+                  <span class="material-icons-outlined" style="font-size:15px">verified</span> Checked By
+                </div>
+                <div class="form-group" style="margin-bottom:12px">
+                  <label class="form-label">Name <span style="color:#DC2626">*</span></label>
+                  <input type="text" class="form-input" id="ecn-checked-name" placeholder="Full name" />
+                </div>
+                <div class="form-group" style="margin:0">
+                  <label class="form-label">Designation / Role <span style="color:#DC2626">*</span></label>
+                  <input type="text" class="form-input" id="ecn-checked-role" placeholder="e.g. Senior Engineer / Manager" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display:flex;gap:12px;justify-content:flex-end;">
+          <button class="btn btn-outline" id="ecn-save-draft">
+            <span class="material-icons-outlined" style="font-size:16px">save</span> Save Draft
+          </button>
           <button class="btn btn-primary" id="ecn-submit">
-            <span class="material-icons-outlined" style="font-size:16px">send</span>Submit ECN
+            <span class="material-icons-outlined" style="font-size:16px">send</span> Submit ECN
           </button>
         </div>
-      </div>
-    </div>`;
 
+      </div><!-- /card-body -->
+    </div><!-- /card -->`;
+
+  // ── Render part chips ──────────────────────────────────────────────────────
+  function renderChips() {
+    const el = tc.querySelector('#ecn-part-chips');
+    if (!el) return;
+    if (affectedPartNumbers.length === 0) {
+      el.innerHTML = '<span style="font-size:0.79rem;color:var(--text-tertiary);line-height:28px;">No part numbers added yet.</span>';
+      return;
+    }
+    el.innerHTML = affectedPartNumbers.map((pn, i) => `
+      <span style="display:inline-flex;align-items:center;gap:5px;background:var(--brand-primary-lighter,#dbeafe);color:#1d4ed8;border:1px solid #93c5fd;border-radius:20px;padding:3px 10px;font-size:0.79rem;font-weight:600;">
+        <span class="material-icons-outlined" style="font-size:12px">tag</span>${pn}
+        <button type="button" data-chip-idx="${i}" style="background:none;border:none;cursor:pointer;color:#1d4ed8;padding:0 0 0 2px;display:flex;align-items:center;line-height:1;">
+          <span class="material-icons-outlined" style="font-size:14px">close</span>
+        </button>
+      </span>`).join('');
+    el.querySelectorAll('[data-chip-idx]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        affectedPartNumbers.splice(parseInt(btn.dataset.chipIdx), 1);
+        resolvedPartIds = [];   // IDs are stale when part list changes
+        renderChips();
+        tc.querySelector('#ecn-bom-preview').style.display = 'none';
+      });
+    });
+  }
+
+  // ── Add Part button ────────────────────────────────────────────────────────
+  function addPartFromInput() {
+    const input = tc.querySelector('#ecn-part-search-input');
+    const val = (input?.value || '').trim();
+    if (!val) return showToast('Enter a part number first', 'warning');
+    if (affectedPartNumbers.includes(val)) return showToast('Part number already added', 'info');
+    affectedPartNumbers.push(val);
+    resolvedPartIds = [];   // IDs are stale when part list changes
+    input.value = '';
+    renderChips();
+  }
+
+  tc.querySelector('#ecn-add-part-btn')?.addEventListener('click', addPartFromInput);
+  tc.querySelector('#ecn-part-search-input')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); addPartFromInput(); }
+  });
+
+  // ── Preview Affected BOMs ──────────────────────────────────────────────────
+  tc.querySelector('#ecn-preview-bom-btn')?.addEventListener('click', async () => {
+    if (affectedPartNumbers.length === 0) return showToast('Add at least one part number first', 'warning');
+    const btn = tc.querySelector('#ecn-preview-bom-btn');
+    const previewDiv = tc.querySelector('#ecn-bom-preview');
+    const contentDiv = tc.querySelector('#ecn-bom-preview-content');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-icons-outlined" style="font-size:15px;animation:spin 1s linear infinite">autorenew</span> Loading…';
+    contentDiv.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-secondary);font-size:0.82rem;">Fetching affected BOMs…</div>';
+    previewDiv.style.display = 'block';
+    try {
+      const res = await authFetch('/api/Changes/ecn/preview-affected-boms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(affectedPartNumbers)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (!Array.isArray(data) || data.length === 0) {
+          resolvedPartIds = [];
+          contentDiv.innerHTML = '<div style="padding:12px 0;color:var(--text-secondary);font-size:0.82rem;">No BOMs found for the given part numbers.</div>';
+        } else {
+          // Extract numeric part IDs from the preview response.
+          // The API may return them as id, partId, affectedPartId — try all common field names.
+          resolvedPartIds = data
+            .map(b => b.id ?? b.partId ?? b.affectedPartId ?? b.partNumber ?? null)
+            .filter(v => v !== null && v !== undefined)
+            .map(v => { const n = parseInt(v, 10); return isNaN(n) ? null : n; })
+            .filter(n => n !== null && n > 0);
+
+          const idBadge = resolvedPartIds.length > 0
+            ? `<span style="margin-left:8px;background:#d1fae5;color:#065f46;border-radius:12px;padding:2px 8px;font-size:0.75rem;font-weight:700;">
+                ✓ ${resolvedPartIds.length} ID${resolvedPartIds.length > 1 ? 's' : ''} resolved
+               </span>`
+            : `<span style="margin-left:8px;background:#fef3c7;color:#92400e;border-radius:12px;padding:2px 8px;font-size:0.75rem;font-weight:700;">
+                ⚠ IDs not returned — will use part numbers
+               </span>`;
+
+          contentDiv.innerHTML = `
+            <div style="margin-bottom:8px;font-size:0.82rem;">${idBadge}</div>
+            <table class="data-table" style="font-size:0.82rem;">
+              <thead><tr><th>BOM / Assembly</th><th>Model</th><th>Status</th></tr></thead>
+              <tbody>
+                ${data.map(b => `<tr>
+                  <td><span class="part-number">${b.bomNumber || b.partNumber || b.assembly || (typeof b === 'string' ? b : JSON.stringify(b))}</span></td>
+                  <td>${b.vehicleModel || b.model || '—'}</td>
+                  <td><span class="badge badge-${(b.status || 'draft').toLowerCase()}">${b.status || 'Draft'}</span></td>
+                </tr>`).join('')}
+              </tbody>
+            </table>`;
+        }
+      } else {
+        resolvedPartIds = [];
+        const errBody = await res.text().catch(() => '');
+        contentDiv.innerHTML = `<div style="padding:12px 0;color:var(--danger-main,#DC2626);font-size:0.82rem;">Failed to load BOM preview (HTTP ${res.status})${errBody ? ': ' + errBody.slice(0, 120) : ''}</div>`;
+      }
+    } catch (err) {
+      console.error('BOM preview error:', err);
+      resolvedPartIds = [];
+      contentDiv.innerHTML = '<div style="padding:12px 0;color:var(--danger-main,#DC2626);font-size:0.82rem;">Network error fetching BOM preview.</div>';
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-icons-outlined" style="font-size:15px">search</span> Preview Affected BOMs';
+    }
+  });
+
+  // ── Deleted Parts rows ─────────────────────────────────────────────────────
+  function renderDeletedRows() {
+    const tbody = tc.querySelector('#ecn-deleted-parts-body');
+    if (!tbody) return;
+    if (deletedParts.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-tertiary);font-size:0.82rem;padding:18px;">No deleted/replaced parts added yet — click "+ Add Row" above.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = deletedParts.map((p, i) => `
+      <tr>
+        <td style="text-align:center;font-weight:600;color:var(--text-tertiary)">${i + 1}</td>
+        <td><input type="text" class="form-input" style="padding:5px 8px;font-size:0.82rem;" data-del-pn="${i}" value="${p.partNumber}" placeholder="Part Number" /></td>
+        <td><input type="text" class="form-input" style="padding:5px 8px;font-size:0.82rem;" data-del-desc="${i}" value="${p.description}" placeholder="Description" /></td>
+        <td><input type="number" class="form-input" style="padding:5px 8px;font-size:0.82rem;" data-del-qty="${i}" value="${p.quantity}" min="0" /></td>
+        <td style="text-align:center">
+          <button type="button" class="btn btn-ghost btn-xs" data-del-remove="${i}" style="color:#DC2626;">
+            <span class="material-icons-outlined" style="font-size:15px">delete</span>
+          </button>
+        </td>
+      </tr>`).join('');
+    tbody.querySelectorAll('[data-del-pn]').forEach(el => el.addEventListener('input', () => { deletedParts[+el.dataset.delPn].partNumber = el.value; }));
+    tbody.querySelectorAll('[data-del-desc]').forEach(el => el.addEventListener('input', () => { deletedParts[+el.dataset.delDesc].description = el.value; }));
+    tbody.querySelectorAll('[data-del-qty]').forEach(el => el.addEventListener('input', () => { deletedParts[+el.dataset.delQty].quantity = parseFloat(el.value) || 0; }));
+    tbody.querySelectorAll('[data-del-remove]').forEach(el => el.addEventListener('click', () => { deletedParts.splice(+el.dataset.delRemove, 1); renderDeletedRows(); }));
+  }
+
+  tc.querySelector('#ecn-add-deleted-row')?.addEventListener('click', () => {
+    deletedParts.push({ partNumber: '', description: '', quantity: 1 });
+    renderDeletedRows();
+  });
+
+  // ── Added Parts rows ───────────────────────────────────────────────────────
+  function renderAddedRows() {
+    const tbody = tc.querySelector('#ecn-added-parts-body');
+    if (!tbody) return;
+    if (addedParts.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary);font-size:0.82rem;padding:18px;">No new/added parts added yet — click "+ Add Row" above.</td></tr>';
+      return;
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    tbody.innerHTML = addedParts.map((p, i) => `
+      <tr>
+        <td style="text-align:center;font-weight:600;color:var(--text-tertiary)">${i + 1}</td>
+        <td><input type="text" class="form-input" style="padding:5px 8px;font-size:0.82rem;" data-add-pn="${i}" value="${p.partNumber}" placeholder="Part Number" /></td>
+        <td><input type="text" class="form-input" style="padding:5px 8px;font-size:0.82rem;" data-add-desc="${i}" value="${p.description}" placeholder="Description" /></td>
+        <td><input type="number" class="form-input" style="padding:5px 8px;font-size:0.82rem;" data-add-qty="${i}" value="${p.quantity}" min="0" /></td>
+        <td><input type="date" class="form-input" style="padding:5px 8px;font-size:0.82rem;" data-add-rev="${i}" value="${p.revisionDate ? p.revisionDate.slice(0,10) : today}" /></td>
+        <td style="text-align:center">
+          <button type="button" class="btn btn-ghost btn-xs" data-add-remove="${i}" style="color:#DC2626;">
+            <span class="material-icons-outlined" style="font-size:15px">delete</span>
+          </button>
+        </td>
+      </tr>`).join('');
+    tbody.querySelectorAll('[data-add-pn]').forEach(el => el.addEventListener('input', () => { addedParts[+el.dataset.addPn].partNumber = el.value; }));
+    tbody.querySelectorAll('[data-add-desc]').forEach(el => el.addEventListener('input', () => { addedParts[+el.dataset.addDesc].description = el.value; }));
+    tbody.querySelectorAll('[data-add-qty]').forEach(el => el.addEventListener('input', () => { addedParts[+el.dataset.addQty].quantity = parseFloat(el.value) || 0; }));
+    tbody.querySelectorAll('[data-add-rev]').forEach(el => el.addEventListener('input', () => { addedParts[+el.dataset.addRev].revisionDate = el.value ? new Date(el.value).toISOString() : null; }));
+    tbody.querySelectorAll('[data-add-remove]').forEach(el => el.addEventListener('click', () => { addedParts.splice(+el.dataset.addRemove, 1); renderAddedRows(); }));
+  }
+
+  tc.querySelector('#ecn-add-added-row')?.addEventListener('click', () => {
+    addedParts.push({ partNumber: '', description: '', quantity: 1, revisionDate: null });
+    renderAddedRows();
+  });
+
+  // ── Save Draft ─────────────────────────────────────────────────────────────
   tc.querySelector('#ecn-save-draft')?.addEventListener('click', () => showToast('ECN saved as draft.', 'info'));
 
+  // ── Submit ECN ─────────────────────────────────────────────────────────────
   tc.querySelector('#ecn-submit')?.addEventListener('click', async (e) => {
     const btn = e.currentTarget;
-    const triggeringPartId = parseInt(tc.querySelector('#ecn-triggering-part')?.value, 10) || 0;
-    const reason = tc.querySelector('#ecn-reason')?.value || "";
-    const changeDetails = tc.querySelector('#ecn-change-details')?.value || "";
-    const remarks = tc.querySelector('#ecn-remarks')?.value || "";
-    const toBeImplementedAfterConsumingStock = tc.querySelector('#ecn-consume-stock')?.checked || false;
-    const toBeImplementedAfterLeadTime = tc.querySelector('#ecn-lead-time')?.checked || false;
-    const toBeImplementedWithImmediateEffect = tc.querySelector('#ecn-immediate')?.checked || false;
-    const runningChange = tc.querySelector('#ecn-running-change')?.checked || false;
-    const fieldPartsToBeModified = tc.querySelector('#ecn-field-parts')?.checked || false;
-    const replaceFieldVehicleParts = tc.querySelector('#ecn-replace-vehicle-parts')?.checked || false;
-    const preparedByName = tc.querySelector('#ecn-prepared-name')?.value || "";
-    const preparedByRole = tc.querySelector('#ecn-prepared-role')?.value || "";
-    const checkedByName = tc.querySelector('#ecn-checked-name')?.value || "";
-    const checkedByRole = tc.querySelector('#ecn-checked-role')?.value || "";
 
-    if (!triggeringPartId || !reason || !changeDetails || !preparedByName || !preparedByRole || !checkedByName || !checkedByRole) {
-      return showToast('Please fill all required fields (*)', 'error');
-    }
+    const reason        = tc.querySelector('#ecn-reason')?.value?.trim()        || '';
+    const changeDetails = tc.querySelector('#ecn-change-details')?.value?.trim() || '';
+    const remarks       = tc.querySelector('#ecn-remarks')?.value?.trim()        || '';
+    const preparedByName = tc.querySelector('#ecn-prepared-name')?.value?.trim() || '';
+    const preparedByRole = tc.querySelector('#ecn-prepared-role')?.value?.trim() || '';
+    const checkedByName  = tc.querySelector('#ecn-checked-name')?.value?.trim()  || '';
+    const checkedByRole  = tc.querySelector('#ecn-checked-role')?.value?.trim()  || '';
+
+    const toBeImplementedAfterConsumingStock = tc.querySelector('#ecn-consume-stock')?.checked || false;
+    const toBeImplementedAfterLeadTime       = tc.querySelector('#ecn-lead-time')?.checked      || false;
+    const toBeImplementedWithImmediateEffect = tc.querySelector('#ecn-immediate')?.checked      || false;
+    const runningChange          = tc.querySelector('#ecn-running-change')?.checked          || false;
+    const fieldPartsToBeModified = tc.querySelector('#ecn-field-parts')?.checked             || false;
+    const replaceFieldVehicleParts = tc.querySelector('#ecn-replace-vehicle-parts')?.checked || false;
+
+    // Validation
+    if (affectedPartNumbers.length === 0)
+      return showToast('Add at least one affected part number (Section 2)', 'error');
+    if (resolvedPartIds.length === 0)
+      return showToast('Please click "Preview Affected BOMs" first so the server can resolve part IDs before submitting.', 'error');
+    if (!reason)
+      return showToast('Reason for Change is required (Section 3)', 'error');
+    if (!changeDetails)
+      return showToast('Change Details is required (Section 3)', 'error');
+    if (!preparedByName || !preparedByRole)
+      return showToast('Prepared By name and role are required (Section 7)', 'error');
+    if (!checkedByName || !checkedByRole)
+      return showToast('Checked By name and role are required (Section 7)', 'error');
+
+    // Use the numeric IDs resolved from the preview-affected-boms API response.
+    // These are the real DB IDs the server expects — never guess or parseInt from strings.
+    const affectedPartIds = resolvedPartIds;
 
     const payload = {
-      triggeringPartId,
+      affectedPartIds,
       reason,
       changeDetails,
       remarks,
@@ -291,11 +672,22 @@ function renderNewECNForm(tc) {
       preparedByName,
       preparedByRole,
       checkedByName,
-      checkedByRole
+      checkedByRole,
+      deletedParts: deletedParts.map(p => ({
+        partNumber:  p.partNumber,
+        description: p.description,
+        quantity:    p.quantity
+      })),
+      addedParts: addedParts.map(p => ({
+        partNumber:   p.partNumber,
+        description:  p.description,
+        quantity:     p.quantity,
+        revisionDate: p.revisionDate || new Date().toISOString()
+      }))
     };
 
     btn.disabled = true;
-    btn.textContent = 'Submitting...';
+    btn.innerHTML = '<span class="material-icons-outlined" style="font-size:16px;animation:spin 1s linear infinite">autorenew</span> Submitting…';
 
     try {
       const res = await authFetch('/api/Changes/ecn', {
@@ -303,19 +695,36 @@ function renderNewECNForm(tc) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
+
       if (res.ok) {
         showToast('ECN submitted successfully!', 'success');
-        tc.querySelectorAll('.form-input').forEach(el => el.value = '');
+        // Reset state
+        affectedPartNumbers = [];
+        resolvedPartIds     = [];
+        deletedParts = [];
+        addedParts   = [];
+        tc.querySelectorAll('.form-input').forEach(el => {
+          if (el.type === 'date') el.value = new Date().toISOString().slice(0, 10);
+          else el.value = '';
+        });
         tc.querySelectorAll('input[type="checkbox"]').forEach(el => el.checked = false);
+        renderChips();
+        renderDeletedRows();
+        renderAddedRows();
+        tc.querySelector('#ecn-bom-preview').style.display = 'none';
       } else {
-        showToast('Failed to submit ECN. Server status ' + res.status, 'error');
+        const errText = await res.text().catch(() => '');
+        showToast('Failed to submit ECN — server returned ' + res.status + (errText ? ': ' + errText.slice(0, 100) : ''), 'error');
       }
     } catch (err) {
-      console.error('Error submitting ECN:', err);
-      showToast('Network error while submitting ECN', 'error');
+      console.error('ECN submit error:', err);
+      showToast('Network error while submitting ECN.', 'error');
     } finally {
       btn.disabled = false;
-      btn.innerHTML = '<span class="material-icons-outlined" style="font-size:16px">send</span>Submit ECN';
+      btn.innerHTML = '<span class="material-icons-outlined" style="font-size:16px">send</span> Submit ECN';
     }
   });
+
+  // Initial renders
+  renderChips();
 }
