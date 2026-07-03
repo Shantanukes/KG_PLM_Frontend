@@ -3,6 +3,7 @@ import { authFetch } from '../api/client.js';
 import { getVehicleModels, getVehicleModelCodes } from '../api/vehicles.js';
 import { createPart, getParts, getPartById, getPartByNumber, updatePart } from '../api/parts.js';
 import { createBom, getBomTree, updateBomLine, deleteBomLine, getBomLines, getBomWhereUsed, getBomByTeamId, getBomParts, getAllBomsWithParts, linkBomWithParent, linkPartToBOM, unlinkPartFromBOM } from '../api/bom.js';
+import { viewDocumentFile, downloadDocumentFile } from '../api/documents.js';
 
 // ΓöÇΓöÇΓöÇ Master Data from PartNo.xlsx ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 // Column 1: Product Category
@@ -187,6 +188,9 @@ function createPartRecordFromBom({ bomNumber, description, type, qty, unit, weig
 
 // ΓöÇΓöÇΓöÇ Main render ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 export function renderBOM(container) {
+  const role = (getCurrentUserRole() || '').toLowerCase();
+  const isDesigner = role === 'designer' || role === '6';
+  const isHomologation = role === 'homologation' || role === '14';
   container.innerHTML = `
     <div class="page-header">
       <div class="page-title-group">
@@ -200,7 +204,7 @@ export function renderBOM(container) {
         <button class="btn btn-outline btn-sm" id="btn-compare-bom">
           <span class="material-icons-outlined" style="font-size:16px">compare_arrows</span>Compare BOMs
         </button>
-        ${!(getCurrentUserRole().toLowerCase() === 'designer' || getCurrentUserRole() === '6') ? `
+        ${!(isDesigner || isHomologation) ? `
         <button class="btn btn-primary btn-sm" id="btn-link-bom" style="background:var(--brand-secondary); border-color:var(--brand-secondary);">
           <span class="material-icons-outlined" style="font-size:16px">link</span>Link BOM
         </button>
@@ -213,8 +217,8 @@ export function renderBOM(container) {
       <button class="tab-btn" data-tab="team-boms">Team BOMs</button>
       <button class="tab-btn" data-tab="bom-parts">BOM Parts</button>
       <button class="tab-btn" data-tab="bom-compare">BOM Compare</button>
-      <button class="tab-btn" data-tab="part-linking">Part linking</button>
-      <button class="tab-btn" data-tab="bom-cloning">BOM Cloning</button>
+      ${!isHomologation ? `<button class="tab-btn" data-tab="part-linking">Part linking</button>` : ''}
+      ${!isHomologation ? `<button class="tab-btn" data-tab="bom-cloning">BOM Cloning</button>` : ''}
     </div>
 
     <div id="tab-content"></div>
@@ -794,6 +798,8 @@ async function renderTeamBoms(tc) {
 
 // ΓöÇΓöÇΓöÇ BOM Parts ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 async function renderBomParts(tc) {
+  const role = (getCurrentUserRole() || '').toLowerCase();
+  const isHomologation = role === 'homologation' || role === '14';
   tc.innerHTML = `
     <div class="card" style="margin-bottom:16px">
       <div class="card-body" style="padding:16px">
@@ -1796,13 +1802,14 @@ async function renderPartDetail(id) {
   }
 
   const docs = localP.docs?.map(d => `
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg-muted);border-radius:var(--radius-sm);margin-bottom:6px;cursor:pointer" class="doc-link" data-doc="${d.name}">
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg-muted);border-radius:var(--radius-sm);margin-bottom:6px" class="doc-item" data-doc-id="${d.id || ''}" data-doc-name="${d.name || ''}" data-doc-type="${d.type || ''}">
       <span class="material-icons-outlined" style="font-size:18px;color:${d.type === 'PDF' ? '#DC2626' : d.type === '3D' ? '#2563EB' : d.type === 'Cert' ? '#059669' : '#7C3AED'}">${ICON_TYPE[String(d.type || '').toLowerCase()] || 'description'}</span>
       <div style="flex:1;min-width:0">
         <div style="font-size:0.857rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.name}</div>
-        <div style="font-size:0.714rem;color:var(--text-tertiary)">${d.type} ┬╖ <span class="badge ${STATUS_BADGE[d.status] || 'badge-draft'} badge-sm">${STATUS_LABEL[d.status] || 'Draft'}</span></div>
+        <div style="font-size:0.714rem;color:var(--text-tertiary)">${d.type} · <span class="badge ${STATUS_BADGE[d.status] || 'badge-draft'} badge-sm">${STATUS_LABEL[d.status] || 'Draft'}</span></div>
       </div>
-      <button class="btn btn-ghost btn-xs view-doc-btn" data-name="${d.name}"><span class="material-icons-outlined" style="font-size:16px">visibility</span></button>
+      <button class="btn btn-ghost btn-xs view-bom-doc-btn" data-doc-id="${d.id || ''}" data-doc-name="${d.name || ''}" data-doc-type="${d.type || ''}" title="View"><span class="material-icons-outlined" style="font-size:16px">visibility</span></button>
+      <button class="btn btn-ghost btn-xs dl-bom-doc-btn" data-doc-id="${d.id || ''}" data-doc-file="${d.name || ''}" title="Download"><span class="material-icons-outlined" style="font-size:16px">download</span></button>
     </div>`).join('') || '<p class="text-xs text-secondary">No documents linked.</p>';
 
   detailPanel.innerHTML = `
@@ -1849,12 +1856,60 @@ async function renderPartDetail(id) {
       </button>
     </div>`;
 
-  detailPanel.querySelectorAll('.view-doc-btn, .doc-link').forEach(el => {
-    el.addEventListener('click', e => {
-      const name = e.target.closest('[data-name],[data-doc]')?.dataset.name || e.target.closest('[data-doc]')?.dataset.doc;
-      if (name) showToast(`Opening ${name}ΓÇª`, 'info');
+  // VIEW button in BOM detail panel
+  detailPanel.querySelectorAll('.view-bom-doc-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const docId = btn.dataset.docId;
+      const docName = btn.dataset.docName || 'Document';
+      const docType = (btn.dataset.docType || '').toUpperCase();
+      if (!docId) {
+        showToast('No document ID — please view from the Document Vault page.', 'warning');
+        return;
+      }
+      showToast(`Loading ${docName}…`, 'info');
+      try {
+        const { objectUrl, contentType } = await viewDocumentFile(docId);
+        const ct = (contentType || '').toLowerCase();
+        let contentHtml;
+        if (ct.startsWith('image/')) {
+          contentHtml = `<div style="text-align:center;padding:16px"><img src="${objectUrl}" alt="${docName}" style="max-width:100%;max-height:60vh;object-fit:contain;border-radius:4px" /></div>`;
+        } else if (ct === 'application/pdf') {
+          contentHtml = `<iframe src="${objectUrl}" style="width:100%;height:60vh;border:none" title="${docName}"></iframe>`;
+        } else {
+          contentHtml = `<div style="padding:24px;text-align:center;color:var(--text-secondary)">This document format (${docType}) cannot be viewed inline.<br><br><button class="btn btn-primary" onclick="window._dlDocById('${docId}','${docName}')">Download File</button></div>`;
+          window._dlDocById = (id, name) => downloadDocumentFile(id, name);
+        }
+        showModal(`${docName}`, contentHtml, `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Close</button>`);
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+      } catch (err) {
+        console.error(err);
+        showToast(`Failed to load ${docName}: ${err.message}`, 'error');
+      }
     });
   });
+
+  // DOWNLOAD button in BOM detail panel
+  detailPanel.querySelectorAll('.dl-bom-doc-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const docId = btn.dataset.docId;
+      const docFile = btn.dataset.docFile || 'document';
+      if (!docId) {
+        showToast('No document ID available', 'warning');
+        return;
+      }
+      showToast(`Downloading ${docFile}…`, 'info');
+      try {
+        await downloadDocumentFile(docId, docFile);
+        showToast('Download started!', 'success');
+      } catch (err) {
+        console.error(err);
+        showToast(`Failed to download: ${err.message}`, 'error');
+      }
+    });
+  });
+
   detailPanel.querySelector('#btn-view-drawing-detail')?.addEventListener('click', () => navigateTo('documents'));
 }
 
@@ -1954,7 +2009,7 @@ async function renderPartSearch(tc) {
         <td><span class="badge ${p.lifecycleStatus === 0 ? 'badge-draft' : p.lifecycleStatus === 1 ? 'badge-review' : 'badge-released'}">${p.lifecycleStatusLabel || '-'}</span></td>
         <td>
           <button class="btn btn-ghost btn-xs btn-info-part" data-id="${p.id}" title="View"><span class="material-icons-outlined" style="font-size:16px">info</span></button>
-          <button class="btn btn-ghost btn-xs btn-edit-part" data-id="${p.id}" title="Edit"><span class="material-icons-outlined" style="font-size:16px">edit</span></button>
+          ${!isHomologation ? `<button class="btn btn-ghost btn-xs btn-edit-part" data-id="${p.id}" title="Edit"><span class="material-icons-outlined" style="font-size:16px">edit</span></button>` : ''}
         </td>
       </tr>`).join('');
 

@@ -66,8 +66,6 @@ const PAGE_DEFINITIONS = [
   { id: 'change-mgmt', label: 'Change Management', load: () => import('./pages/change-mgmt.js').then(m => m.renderChangeManagement) },
   { id: 'models', label: 'Models & Variants', load: () => import('./pages/models.js').then(m => m.renderModels) },
   { id: 'homologation', label: 'Homologation', load: () => import('./pages/homologation.js').then(m => m.renderHomologation) },
-  { id: 'software', label: 'Software / OTA', load: () => import('./pages/software.js').then(m => m.renderSoftware) },
-  { id: 'reports', label: 'Reports', load: () => import('./pages/reports.js').then(m => m.renderReports) },
   { id: 'suppliers', label: 'Suppliers', load: () => import('./pages/suppliers.js').then(m => m.renderSuppliers) },
   { id: 'members', label: 'Members', load: () => import('./pages/members.js').then(m => m.renderMembers) },
   { id: 'part-number', label: 'Lookups', load: () => import('./pages/part-number.js').then(m => m.renderPartNumber) },
@@ -117,6 +115,24 @@ function getAllowedPages() {
       'suppliers', 'members', 'part-number'
     ];
     return PAGE_DEFINITIONS.map((p) => p.id).filter(id => designerAllowed.includes(id));
+  }
+
+  // Homologation sees specific operational pages
+  if (role === 'homologation' || rawRole === '14') {
+    const homologationAllowed = [
+      'parts', 'bom', 'documents', 'workflows', 'ticket-raise',
+      'ticket-history', 'homologation', 'suppliers', 'members'
+    ];
+    return PAGE_DEFINITIONS.map((p) => p.id).filter(id => homologationAllowed.includes(id));
+  }
+  // Sourcing Sees specific operational pages
+
+  if (role === 'sourcing' || rawRole === '9') {
+    const sourcingAllowed = [
+      'parts', 'bom', 'documents', 'workflows', 'ticket-raise',
+      'ticket-history', 'suppliers', 'members', 'change-mgmt', 'models'
+    ];
+    return PAGE_DEFINITIONS.map((p) => p.id).filter(id => sourcingAllowed.includes(id));
   }
 
   // Default to all operational pages for other roles (excluding the executive suite)

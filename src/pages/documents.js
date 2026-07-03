@@ -1,11 +1,12 @@
-import { showToast, showModal, navigateTo } from '../main.js';
-import { getDocuments, getDocumentsByPartNumber } from '../api/documents.js';
+import { showToast, showModal, navigateTo, getCurrentUserRole } from '../main.js';
+import { getDocuments, getDocumentsByPartNumber, viewDocumentFile, downloadDocumentFile } from '../api/documents.js';
 import { assignWorkflow } from '../api/workflow.js';
+
 export function renderDocuments(container) {
   container.innerHTML = `
     <div class="page-header">
       <div class="page-title-group">
-        <h1>Document Vault & Drawing Control</h1>
+        <h1>Document Vault &amp; Drawing Control</h1>
         <p>Version-controlled engineering drawings, CAD files, compliance documents with approval workflow.</p>
       </div>
       <div class="page-actions">
@@ -79,17 +80,21 @@ export function renderDocuments(container) {
           </button>
         </div>
       </div>
-      <div class="card-body" id="viewer-body" style="min-height:280px;display:flex;align-items:center;justify-content:center;background:#FAFBFC">
+      <div class="card-body" id="viewer-body" style="min-height:520px;display:flex;align-items:center;justify-content:center;background:#FAFBFC">
         <div class="empty-state">
           <span class="material-icons-outlined">draw</span>
           <h3>Select a drawing to preview</h3>
-          <p>Click on any drawing row to open it in the browser-based viewer.</p>
+          <p>Click on any drawing row or the View button to open it in the browser-based viewer.</p>
         </div>
       </div>
     </div>
   `;
 
   let documents = [];
+  // Track current document shown in viewer for download button
+  let currentViewerDoc = null;
+  // Track object URLs so we can revoke them to free memory
+  let currentViewerObjectUrl = null;
 
   function formatBytes(bytes) {
     if (!bytes) return '0 Bytes';
@@ -151,7 +156,7 @@ export function renderDocuments(container) {
 
     return {
       drw: apiDoc.drawingNumber || '-',
-      name: apiDoc.name || '-',
+      name: apiDoc.name || apiDoc.fileName || '-',
       part: apiDoc.partNumber || '-',
       type: type,
       rev: apiDoc.revision || '-',
@@ -161,13 +166,13 @@ export function renderDocuments(container) {
       by: apiDoc.uploadedByUserName || 'Unknown',
       date: formatDate(apiDoc.createdAt),
       color: '#6B7280',
-      storageUrl: apiDoc.storageUrl,
-      fileUrl: apiDoc.id ? `http://203.16.201.244:5000/api/Documents/${apiDoc.id}/file` : '#',
+      fileName: apiDoc.fileName || '',
       id: apiDoc.id
     };
   }
 
   async function loadData() {
+    const vb = container.querySelector('#viewer-body');
     try {
       const apiDocs = await getDocuments();
       if (apiDocs && Array.isArray(apiDocs)) {
@@ -178,6 +183,12 @@ export function renderDocuments(container) {
     } catch (e) {
       console.error('Failed to load API docs:', e);
       documents = [];
+      // Show the error reason in the viewer placeholder
+      if (vb && e.message && e.message.includes('401')) {
+        showToast('Session expired — please log out and log back in.', 'error');
+      } else if (vb && e.message) {
+        showToast(`Could not load documents: ${e.message}`, 'error');
+      }
     }
 
     applyCurrentFilter();
@@ -208,6 +219,9 @@ export function renderDocuments(container) {
   const typeIcon = { PDF: 'picture_as_pdf', DWG: 'drafts', STEP: 'view_in_ar', BIN: 'memory', Cert: 'verified' };
 
   function populateTable(docs, isComplianceOnly = false) {
+    const role = (getCurrentUserRole() || '').toLowerCase();
+    const isHomologation = role === 'homologation' || role === '14';
+
     if (isComplianceOnly) {
       thead.innerHTML = `
         <tr>
@@ -236,8 +250,12 @@ export function renderDocuments(container) {
           <td class="text-sm">${d.by}</td>
           <td class="text-sm text-secondary">${d.date}</td>
           <td onclick="event.stopPropagation()">
-            <button class="btn btn-ghost btn-xs view-doc-btn" data-index="${i}" title="View"><span class="material-icons-outlined" style="font-size:16px">visibility</span></button>
-            <button class="btn btn-ghost btn-xs dl-doc-btn" data-index="${i}" title="Download"><span class="material-icons-outlined" style="font-size:16px">download</span></button>
+            <button class="btn btn-ghost btn-xs view-doc-btn" data-index="${i}" title="View Drawing">
+              <span class="material-icons-outlined" style="font-size:16px">visibility</span>
+            </button>
+            <button class="btn btn-ghost btn-xs dl-doc-btn" data-index="${i}" title="Download File">
+              <span class="material-icons-outlined" style="font-size:16px">download</span>
+            </button>
           </td>
         </tr>`).join('');
     } else {
@@ -268,30 +286,51 @@ export function renderDocuments(container) {
           <td class="text-sm">${d.by}</td>
           <td class="text-sm text-secondary">${d.date}</td>
           <td onclick="event.stopPropagation()">
-            <button class="btn btn-ghost btn-xs view-doc-btn" data-index="${i}" title="View"><span class="material-icons-outlined" style="font-size:16px">visibility</span></button>
-            <button class="btn btn-ghost btn-xs dl-doc-btn" data-index="${i}" title="Download"><span class="material-icons-outlined" style="font-size:16px">download</span></button>
-            ${d.wm === 'review' ? `<button class="btn btn-success btn-xs approve-doc-btn" data-index="${i}" title="Approve">Approve</button>` : ''}
-            ${d.wm === 'draft' ? `<button class="btn btn-primary btn-xs assign-doc-btn" data-index="${i}" title="Assign Workflow">Assign</button>` : ''}
+            <button class="btn btn-ghost btn-xs view-doc-btn" data-index="${i}" title="View Drawing">
+              <span class="material-icons-outlined" style="font-size:16px">visibility</span>
+            </button>
+            <button class="btn btn-ghost btn-xs dl-doc-btn" data-index="${i}" title="Download File">
+              <span class="material-icons-outlined" style="font-size:16px">download</span>
+            </button>
+            ${d.wm === 'review' && !isHomologation ? `<button class="btn btn-success btn-xs approve-doc-btn" data-index="${i}" title="Approve">Approve</button>` : ''}
+            ${d.wm === 'draft' && !isHomologation ? `<button class="btn btn-primary btn-xs assign-doc-btn" data-index="${i}" title="Assign Workflow">Assign</button>` : ''}
           </td>
         </tr>`).join('');
     }
 
+    // Row click → open viewer
     tbody.querySelectorAll('.doc-row').forEach(row => {
       row.addEventListener('click', () => openViewer(docs[row.dataset.index]));
     });
+
+    // VIEW button → fetch with ?inline=true → show in embedded viewer
     tbody.querySelectorAll('.view-doc-btn').forEach(btn => {
-      btn.addEventListener('click', () => openViewer(docs[btn.dataset.index]));
-    });
-    tbody.querySelectorAll('.dl-doc-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
+        openViewer(docs[btn.dataset.index]);
+      });
+    });
+
+    // DOWNLOAD button → fetch without inline → trigger browser download
+    tbody.querySelectorAll('.dl-doc-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         const d = docs[btn.dataset.index];
+        if (!d.id) {
+          showToast('No document ID available for download', 'warning');
+          return;
+        }
         showToast(`Downloading ${d.drw}…`, 'info');
-        if (d.fileUrl && d.fileUrl !== '#') {
-          window.open(d.fileUrl, '_blank');
+        try {
+          await downloadDocumentFile(d.id, d.fileName || d.drw);
+          showToast(`${d.drw} downloaded successfully!`, 'success');
+        } catch (err) {
+          console.error('Download failed:', err);
+          showToast(`Failed to download ${d.drw}: ${err.message}`, 'error');
         }
       });
     });
+
     tbody.querySelectorAll('.approve-doc-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -301,7 +340,7 @@ export function renderDocuments(container) {
            <div class="form-group" style="margin-top:16px"><label class="form-label">Approval Comments</label><textarea class="form-input" rows="3" placeholder="Engineering sign-off notes…" style="resize:vertical"></textarea></div>
            <p class="text-xs text-secondary" style="margin-top:8px"> will change from UNDER REVIEW ➜ APPROVED automatically upon confirmation.</p>`,
           `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
-           <button class="btn btn-primary" id="confirm-doc-approve">Approve & Release</button>`
+           <button class="btn btn-primary" id="confirm-doc-approve">Approve &amp; Release</button>`
         );
         setTimeout(() => {
           document.getElementById('confirm-doc-approve')?.addEventListener('click', () => {
@@ -313,6 +352,7 @@ export function renderDocuments(container) {
         }, 50);
       });
     });
+
     tbody.querySelectorAll('.assign-doc-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -344,9 +384,79 @@ export function renderDocuments(container) {
     });
   }
 
-  function openViewer(doc) {
+  /**
+   * Opens the embedded viewer panel for a document.
+   * Fetches the file using ?inline=true via JWT auth and renders it.
+   */
+  async function openViewer(doc) {
+    // Clean up any previous object URL to free memory
+    if (currentViewerObjectUrl) {
+      URL.revokeObjectURL(currentViewerObjectUrl);
+      currentViewerObjectUrl = null;
+    }
+
+    currentViewerDoc = doc;
+
     const vb = container.querySelector('#viewer-body');
+
+    // Show a loading state immediately
     vb.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:40px">
+        <div style="width:40px;height:40px;border:3px solid var(--border-light);border-top-color:var(--brand-primary);border-radius:50%;animation:spin 0.8s linear infinite"></div>
+        <div style="font-size:0.857rem;color:var(--text-secondary)">Loading ${doc.drw}…</div>
+      </div>
+      <style>@keyframes spin{to{transform:rotate(360deg)}}</style>`;
+
+    container.querySelector('#viewer-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    // Update the download button to be wired to this doc
+    const dlBtn = container.querySelector('#viewer-download');
+    if (dlBtn) dlBtn.dataset.docId = doc.id || '';
+    if (dlBtn) dlBtn.dataset.docName = doc.fileName || doc.drw || 'document';
+
+    if (!doc.id) {
+      vb.innerHTML = buildViewerMeta(doc, buildFallbackContent(doc, 'No document ID — cannot fetch file from server.'));
+      showToast(`No ID for ${doc.drw}`, 'warning');
+      return;
+    }
+
+    try {
+      const { objectUrl, contentType } = await viewDocumentFile(doc.id);
+      currentViewerObjectUrl = objectUrl;
+
+      let contentHtml;
+      const ct = (contentType || '').toLowerCase();
+
+      if (ct.startsWith('image/')) {
+        // Images: render in <img> tag — blob: is allowed by img-src 'self' blob:
+        contentHtml = `
+          <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:auto;padding:16px">
+            <img src="${objectUrl}" alt="${doc.name}" style="max-width:100%;max-height:500px;object-fit:contain;border-radius:4px;box-shadow:0 2px 12px rgba(0,0,0,0.12)" />
+          </div>`;
+      } else if (ct === 'application/pdf') {
+        // PDFs: use <embed> (uses object-src directive, not frame-src)
+        // blob: is allowed by object-src 'self' blob: in our CSP
+        contentHtml = `
+          <embed src="${objectUrl}" type="application/pdf" style="width:100%;height:520px;border:none;border-radius:4px" title="${doc.name}" />`;
+      } else {
+        // Other types (DOCX, STEP, BIN, DWG): show fallback with download button
+        contentHtml = buildFallbackContent(doc, `This document format (${doc.type}) cannot be viewed inline. Please download it.`);
+      }
+
+      vb.innerHTML = buildViewerMeta(doc, contentHtml);
+      showToast(`Viewing: ${doc.drw}`, 'success');
+    } catch (err) {
+      console.error('Failed to load file for viewer:', err);
+      const msg = err.message?.includes('401')
+        ? 'Session expired — please log out and log back in.'
+        : `Could not load file: ${err.message}`;
+      vb.innerHTML = buildViewerMeta(doc, buildFallbackContent(doc, msg));
+      showToast(`Failed to load ${doc.drw}`, 'error');
+    }
+  }
+
+  function buildViewerMeta(doc, contentHtml) {
+    return `
       <div style="width:100%;padding:24px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
           <div>
@@ -358,24 +468,24 @@ export function renderDocuments(container) {
             <span class="tag">Rev ${doc.rev}</span>
           </div>
         </div>
-        <div style="background:#F1F5F9;border:1px solid var(--border-light);border-radius:var(--radius-md);height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;overflow:hidden">
-          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#E5E7EB;font-size:4rem;font-weight:900;font-family:var(--font-mono);letter-spacing:4px;opacity:0.8;user-select:none;pointer-events:none">${doc.wmlabel}</div>
-          <span class="material-icons-outlined" style="font-size:48px;color:var(--text-tertiary);position:relative;z-index:1">${doc.type === 'PDF' ? 'picture_as_pdf' : doc.type === 'STEP' ? 'view_in_ar' : doc.type === 'BIN' ? 'memory' : 'description'}</span>
-          <div style="font-size:0.857rem;color:var(--text-secondary);margin-top:8px;position:relative;z-index:1">${doc.name} — ${doc.size}</div>
-          <div style="font-size:0.786rem;color:var(--text-tertiary);position:relative;z-index:1">Uploaded by ${doc.by} on ${doc.date}</div>
-      </div>
-      <div style="display:flex;justify-content:space-between;margin-top:12px;font-size:0.786rem;color:var(--text-tertiary)">
-        <span>File: ${doc.drw}</span>
-        ${doc.type === 'Cert' ? `<span>BOM: ${doc.bomRef || '—'}</span><span>Model: ${doc.modelRef || '—'}</span>` : `<span>Part: ${doc.part || '—'}</span>`}
-        <span>Type: ${doc.type}</span><span>Size: ${doc.size}</span>
-      </div>
-    </div>`;
+        <div style="background:#F1F5F9;border:1px solid var(--border-light);border-radius:var(--radius-md);min-height:520px;overflow:hidden;position:relative">
+          ${contentHtml}
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:12px;font-size:0.786rem;color:var(--text-tertiary)">
+          <span>File: ${doc.drw}</span>
+          ${doc.type === 'Cert' ? `<span>BOM: ${doc.bomRef || '—'}</span><span>Model: ${doc.modelRef || '—'}</span>` : `<span>Part: ${doc.part || '—'}</span>`}
+          <span>Type: ${doc.type}</span><span>Size: ${doc.size}</span>
+        </div>
+      </div>`;
+  }
 
-    const dlBtn = container.querySelector('#viewer-download');
-    if (dlBtn) dlBtn.dataset.fileUrl = doc.fileUrl || '#';
-
-    container.querySelector('#viewer-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    showToast(`Viewing: ${doc.drw}`, 'info');
+  function buildFallbackContent(doc, message) {
+    return `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:48px">
+        <span class="material-icons-outlined" style="font-size:48px;color:var(--text-tertiary)">${doc.type === 'PDF' ? 'picture_as_pdf' : doc.type === 'STEP' ? 'view_in_ar' : doc.type === 'BIN' ? 'memory' : 'description'}</span>
+        <div style="font-size:0.857rem;color:var(--text-secondary);text-align:center">${message}</div>
+        <div style="font-size:0.786rem;color:var(--text-tertiary)">${doc.name} — ${doc.size} — Uploaded by ${doc.by} on ${doc.date}</div>
+      </div>`;
   }
 
   loadData();
@@ -402,25 +512,34 @@ export function renderDocuments(container) {
     });
   });
 
-  // Viewer actions
+  // Viewer toolbar actions
   container.querySelector('#viewer-zoom-in')?.addEventListener('click', () => showToast('Zoomed in', 'info'));
   container.querySelector('#viewer-zoom-out')?.addEventListener('click', () => showToast('Zoomed out', 'info'));
   container.querySelector('#viewer-fit')?.addEventListener('click', () => showToast('Fit to screen', 'info'));
   container.querySelector('#viewer-annotate')?.addEventListener('click', () => showToast('Annotation mode enabled. Click on the drawing to add a comment.', 'info'));
-  container.querySelector('#viewer-download')?.addEventListener('click', (e) => {
-    const url = e.currentTarget.dataset.fileUrl;
-    if (url && url !== '#') {
-      window.open(url, '_blank');
-      showToast('Downloading current file…', 'info');
-    } else {
-      showToast('No file available to download', 'warning');
+
+  // Viewer Download button — uses the stored doc ID
+  container.querySelector('#viewer-download')?.addEventListener('click', async (e) => {
+    const docId = e.currentTarget.dataset.docId;
+    const docName = e.currentTarget.dataset.docName || 'document';
+    if (!docId) {
+      showToast('No document selected or ID unavailable', 'warning');
+      return;
+    }
+    showToast('Preparing download…', 'info');
+    try {
+      await downloadDocumentFile(docId, docName);
+      showToast('Download started!', 'success');
+    } catch (err) {
+      console.error('Download failed:', err);
+      showToast(`Download failed: ${err.message}`, 'error');
     }
   });
+
   container.querySelector('#viewer-prev')?.addEventListener('click', () => showToast('Previous revision loaded', 'info'));
   container.querySelector('#viewer-next')?.addEventListener('click', () => showToast('No newer revision available', 'warning'));
 
-  // Upload Drawing moved to dedicated sidebar page: upload-drawing
-
+  // Part number search
   container.querySelector('#btn-part-search')?.addEventListener('click', async () => {
     const partNumber = container.querySelector('#part-id-search').value.trim();
     if (!partNumber) {

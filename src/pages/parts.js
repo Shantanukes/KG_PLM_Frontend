@@ -2,6 +2,7 @@ import { showToast, showModal, navigateTo, getCurrentUserRole } from '../main.js
 import { authFetch } from '../api/client.js';
 import { createPart, getParts, getPartById, getPartByNumber, updatePart, revisePart, deletePart, fetchSuppliers } from '../api/parts.js';
 import { createBom, getBomTree, updateBomLine, deleteBomLine, getBomLines, getBomWhereUsed, getBoms, getBomParts, getBomById, getAllBomsWithParts, addBomLine } from '../api/bom.js';
+import { viewDocumentFile, downloadDocumentFile } from '../api/documents.js';
 
 // ─── Master Data from PartNo.xlsx ───────────────────────────
 // Column 1: Product Category
@@ -243,6 +244,7 @@ function createPartRecordFromBom({ bomNumber, description, type, qty, unit, weig
 export function renderParts(container) {
   const role = (getCurrentUserRole() || '').toLowerCase();
   const isProjectManager = role.replace(/\s/g, '') === 'projectmanager' || role.replace(/\s/g, '') === 'superadmin';
+  const isHomologation = role === 'homologation' || role === '14';
 
   container.innerHTML = `
     <div class="page-header">
@@ -264,7 +266,7 @@ export function renderParts(container) {
 
     <div class="tabs" id="part-tabs">
       <button class="tab-btn active" data-tab="part-search">Part Search</button>
-      <button class="tab-btn" data-tab="part-revision">Part Revision</button>
+      ${!isHomologation ? `<button class="tab-btn" data-tab="part-revision">Part Revision</button>` : ''}
       ${isProjectManager ? `<button class="tab-btn" data-tab="part-requests">Part Requests</button>` : ''}
       ${isProjectManager ? `<button class="tab-btn" data-tab="pending-parts">Pending Parts</button>` : ''}
       ${isProjectManager ? `<button class="tab-btn" data-tab="create-part">Create Part</button>` : ''}
@@ -1265,13 +1267,14 @@ function renderPartDetail(id) {
   const isSW = p.cls === 'Software (SW)';
 
   const docs = p.docs?.map(d => `
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg-muted);border-radius:var(--radius-sm);margin-bottom:6px;cursor:pointer" class="doc-link" data-doc="${d.name}">
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg-muted);border-radius:var(--radius-sm);margin-bottom:6px" class="doc-link" data-doc-id="${d.id || ''}" data-doc-name="${d.name || ''}" data-doc-file="${d.name || ''}">
       <span class="material-icons-outlined" style="font-size:18px;color:${d.type === 'PDF' ? '#DC2626' : d.type === '3D' ? '#2563EB' : d.type === 'Cert' ? '#059669' : '#7C3AED'}">${ICON_TYPE[String(d.type || '').toLowerCase()] || 'description'}</span>
       <div style="flex:1;min-width:0">
         <div style="font-size:0.857rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.name}</div>
         <div style="font-size:0.714rem;color:var(--text-tertiary)">${d.type} · <span class="badge ${STATUS_BADGE[d.status] || 'badge-draft'} badge-sm">${STATUS_LABEL[d.status] || 'Draft'}</span></div>
       </div>
-      <button class="btn btn-ghost btn-xs view-doc-btn" data-name="${d.name}"><span class="material-icons-outlined" style="font-size:16px">visibility</span></button>
+      <button class="btn btn-ghost btn-xs view-part-doc-btn" data-doc-id="${d.id || ''}" data-doc-name="${d.name || ''}" data-doc-type="${d.type || ''}" title="View"><span class="material-icons-outlined" style="font-size:16px">visibility</span></button>
+      <button class="btn btn-ghost btn-xs dl-part-doc-btn" data-doc-id="${d.id || ''}" data-doc-file="${d.name || ''}" title="Download"><span class="material-icons-outlined" style="font-size:16px">download</span></button>
     </div>`).join('') || '<p class="text-xs text-secondary">No documents linked.</p>';
 
   detailPanel.innerHTML = `
@@ -1319,12 +1322,60 @@ function renderPartDetail(id) {
       </button>
     </div>`;
 
-  detailPanel.querySelectorAll('.view-doc-btn, .doc-link').forEach(el => {
-    el.addEventListener('click', e => {
-      const name = e.target.closest('[data-name],[data-doc]')?.dataset.name || e.target.closest('[data-doc]')?.dataset.doc;
-      if (name) showToast(`Opening ${name}…`, 'info');
+  // VIEW button in parts detail panel
+  detailPanel.querySelectorAll('.view-part-doc-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const docId = btn.dataset.docId;
+      const docName = btn.dataset.docName || 'Document';
+      const docType = (btn.dataset.docType || '').toUpperCase();
+      if (!docId) {
+        showToast('No document ID — please view from the Document Vault page.', 'warning');
+        return;
+      }
+      showToast(`Loading ${docName}…`, 'info');
+      try {
+        const { objectUrl, contentType } = await viewDocumentFile(docId);
+        const ct = (contentType || '').toLowerCase();
+        let contentHtml;
+        if (ct.startsWith('image/')) {
+          contentHtml = `<div style="text-align:center;padding:16px"><img src="${objectUrl}" alt="${docName}" style="max-width:100%;max-height:60vh;object-fit:contain;border-radius:4px" /></div>`;
+        } else if (ct === 'application/pdf') {
+          contentHtml = `<iframe src="${objectUrl}" style="width:100%;height:60vh;border:none" title="${docName}"></iframe>`;
+        } else {
+          contentHtml = `<div style="padding:24px;text-align:center;color:var(--text-secondary)">This document format (${docType}) cannot be viewed inline.<br><br><button class="btn btn-primary" onclick="window._dlDocById('${docId}','${docName}')">Download File</button></div>`;
+          window._dlDocById = (id, name) => downloadDocumentFile(id, name);
+        }
+        showModal(`${docName}`, contentHtml, `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Close</button>`);
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+      } catch (err) {
+        console.error(err);
+        showToast(`Failed to load ${docName}: ${err.message}`, 'error');
+      }
     });
   });
+
+  // DOWNLOAD button in parts detail panel
+  detailPanel.querySelectorAll('.dl-part-doc-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const docId = btn.dataset.docId;
+      const docFile = btn.dataset.docFile || 'document';
+      if (!docId) {
+        showToast('No document ID available', 'warning');
+        return;
+      }
+      showToast(`Downloading ${docFile}…`, 'info');
+      try {
+        await downloadDocumentFile(docId, docFile);
+        showToast('Download started!', 'success');
+      } catch (err) {
+        console.error(err);
+        showToast(`Failed to download: ${err.message}`, 'error');
+      }
+    });
+  });
+
   detailPanel.querySelector('#btn-view-drawing-detail')?.addEventListener('click', () => navigateTo('documents'));
 }
 
@@ -1332,6 +1383,7 @@ function renderPartDetail(id) {
 async function renderPartSearch(tc) {
   const role = (getCurrentUserRole() || '').toLowerCase();
   const isProjectManager = role.replace(/\s/g, '') === 'projectmanager' || role.replace(/\s/g, '') === 'superadmin';
+  const isHomologation = role === 'homologation' || role === '14';
   tc.innerHTML = `
     <div class="card" style="margin-bottom:16px">
       <div class="card-body" style="padding:16px">
@@ -1460,7 +1512,7 @@ async function renderPartSearch(tc) {
           <button class="btn btn-ghost btn-xs btn-info-part" data-id="${p.id}" title="View"><span class="material-icons-outlined" style="font-size:16px">info</span></button>
           ${isProjectManager ? `<button class="btn btn-ghost btn-xs btn-edit-part" data-id="${p.id}" title="Edit"><span class="material-icons-outlined" style="font-size:16px">edit</span></button>` : ''}
           ${isProjectManager ? `<button class="btn btn-ghost btn-xs btn-revise-part" data-id="${p.id}" data-pn="${p.partNumber}" title="Revise Part"><span class="material-icons-outlined" style="font-size:16px">history</span></button>` : ''}
-          <button class="btn btn-ghost btn-xs btn-upload-part" data-pn="${p.partNumber}" title="Upload Drawing"><span class="material-icons-outlined" style="font-size:16px">upload_file</span></button>
+          ${!isHomologation ? `<button class="btn btn-ghost btn-xs btn-upload-part" data-pn="${p.partNumber}" title="Upload Drawing"><span class="material-icons-outlined" style="font-size:16px">upload_file</span></button>` : ''}
           ${role === 'superadmin' ? `<button class="btn btn-ghost btn-xs btn-delete-part" data-id="${p.id}" title="Delete"><span class="material-icons-outlined" style="font-size:16px;color:#DC2626;">delete</span></button>` : ''}
         </td>
       </tr>`).join('');

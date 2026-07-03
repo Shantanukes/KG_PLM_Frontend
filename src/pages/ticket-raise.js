@@ -1,7 +1,9 @@
-import { showToast } from '../main.js';
+import { showToast, getCurrentUserRole } from '../main.js';
 import { createWorkflowTicket, getWorkflowTickets, getTicketBadgeClass, getTicketStatusLabel } from './ticketing.js';
 
 export function renderTicketRaise(container) {
+  const role = (getCurrentUserRole() || '').toLowerCase();
+  const isHomologation = role === 'homologation' || role === '14';
   container.innerHTML = `
     <div class="page-header">
       <div class="page-title-group">
@@ -9,7 +11,7 @@ export function renderTicketRaise(container) {
         <p>Raise workflow-related tickets with routing based on manager approval state.</p>
       </div>
     </div>
-
+    ${!isHomologation ? `
     <div class="card" style="margin-bottom:16px">
       <div class="card-header"><div class="card-title"><span class="material-icons-outlined">add_circle</span>Raise New Ticket</div></div>
       <div class="card-body">
@@ -25,6 +27,7 @@ export function renderTicketRaise(container) {
         <div style="display:flex;justify-content:flex-end;gap:10px"><button class="btn btn-primary" id="tr-submit">Raise Ticket</button></div>
       </div>
     </div>
+    ` : ''}
 
     <div class="card">
       <div class="card-header"><div class="card-title"><span class="material-icons-outlined">schedule</span>Recently Raised Tickets</div></div>

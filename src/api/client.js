@@ -60,7 +60,31 @@ export async function apiRequest(pathOrUrl, options = {}) {
   return fetch(url, requestOptions);
 }
 
+export function getCurrentRoleFromStorage() {
+  try {
+    const stored = localStorage.getItem('kg_plm_session_user');
+    if (stored) {
+      const user = JSON.parse(stored);
+      return String(user.role || '').toLowerCase().replace(/[-\s]/g, '');
+    }
+  } catch (e) { }
+  return '';
+}
+
+
 export async function authFetch(pathOrUrl, options = {}) {
+  const method = (options?.method || 'GET').toUpperCase();
+  const role = getCurrentRoleFromStorage();
+
+  if (role === 'homologation' || role === '14') {
+    if (method !== 'GET') {
+      const isUpload = method === 'POST' && pathOrUrl.includes('/api/Documents');
+      if (!isUpload) {
+        throw new Error('403 Forbidden: Homologation role is restricted to view-only and certificate uploads.');
+      }
+    }
+  }
+
   const accessToken = getAccessToken();
   const requestOptions = { ...(options || {}) };
   requestOptions.headers = { ...(options?.headers || {}) };

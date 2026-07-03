@@ -262,6 +262,8 @@ async function renderMyTasks(tc) {
           <thead><tr><th>Workflow ID</th><th>Subject</th><th>Type</th><th>Current Step</th><th>Assignee</th><th>Started</th><th>Part Ref</th><th>Action</th></tr></thead>
           <tbody>
             ${tasks.length ? tasks.map(t => {
+    const role = (getCurrentUserRole() || '').toLowerCase();
+    const isHomologation = role === 'homologation' || role === '14';
     const isDone = (t.step === 'Completed' || t.step === 'Approved' || t.step === 'Rejected');
     const bgColor = (t.step === 'Completed' || t.step === 'Approved') ? '#10B981' : (t.step === 'Rejected' ? '#EF4444' : '#F59E0B');
     const text = t.step === 'Completed' ? 'Approved' : t.step;
@@ -275,9 +277,9 @@ async function renderMyTasks(tc) {
                 <td>${t.started}</td>
                 <td style="font-family:var(--font-mono); font-size:0.857rem;">${t.ref}</td>
                 <td>
-                  ${(t.type === 'UploadDrawing' || t.type === 'ReUploadDrawing') && !isDone ?
+                  ${(t.type === 'UploadDrawing' || t.type === 'ReUploadDrawing') && !isDone && !isHomologation ?
         `<button class="btn btn-primary btn-xs nav-upload-btn" data-part="${t.ref !== '-' ? t.ref : t.entityId}">Upload Drawing</button>` :
-        ((t.type === 'Part' || t.type === 'PartNumber' || t.type?.toLowerCase() === 'drawing' || t.type === 'BOM') && !isDone ? `<button class="btn btn-outline btn-xs view-stage-btn" data-id="${t.entityId}" data-type="${t.type}">View Stage</button>` : '')}
+        (((t.type || '').includes('Part') || (t.type || '').toLowerCase().includes('drawing') || (t.type || '').toLowerCase().includes('bom')) && !isDone ? `<button class="btn btn-outline btn-xs view-stage-btn" data-id="${t.entityId}" data-type="${t.type}">View Stage</button>` : '')}
                 </td>
               </tr>`}).join('') : '<tr><td colspan="8" class="text-center text-secondary py-4" style="text-align: center;">No pending tasks</td></tr>'}
           </tbody>
@@ -381,18 +383,21 @@ async function renderMyTasks(tc) {
 
       try {
         const itemType = e.target.dataset.type;
-        const res = itemType === 'BOM'
+        const isBomItem = itemType === 'BOM' || itemType === 'BOMEntity' || (itemType || '').toLowerCase().includes('bom');
+        const res = isBomItem
           ? await authFetch('/api/BOM/' + entityId + '/approval-status')
           : await authFetch('/api/Parts/' + entityId + '/current-approval-stage');
 
         if (res.ok) {
           const data = await res.json();
-          const resolvedType = data.approvalType || itemType;
-          const isApprovable = resolvedType === 'PartNumber' || resolvedType?.toLowerCase() === 'drawing' || resolvedType === 'BOM';
+          const resolvedType = data.approvalType || (isBomItem ? 'BOM' : itemType);
+          const isBomResolved = resolvedType === 'BOM' || resolvedType === 'BOMEntity' || (resolvedType || '').toLowerCase().includes('bom');
+          const isApprovable = resolvedType === 'PartNumber' || resolvedType?.toLowerCase() === 'drawing' || isBomResolved;
           const currentUserRole = (getCurrentUserRole() || '').toLowerCase().replace(/\s/g, '');
           const isDesignerRole = currentUserRole === 'designer';
+          const isHomologationRole = currentUserRole === 'homologation' || currentUserRole === '14';
           const isDesignerRejected = isDesignerRole && ((data.status || '').toLowerCase() === 'rejected' || (data.result || '').toLowerCase() === 'rejected' || (data.currentApprovalStage || '').toLowerCase().includes('reject'));
-          const isProjectManagerPartStage = currentUserRole === 'projectmanager' && 
+          const isProjectManagerPartStage = currentUserRole === 'projectmanager' &&
             (resolvedType === 'PartNumber' || resolvedType === 'Part' || itemType === 'Part' || itemType === 'PartNumber') &&
             ((data.role || '').toLowerCase() === 'projectmanager' || (data.currentApprovalStage || '').toLowerCase().includes('projectmanager') || (data.currentApprovalStage || '').toLowerCase().includes('pm'));
 
@@ -407,7 +412,7 @@ async function renderMyTasks(tc) {
                  <div style="margin-bottom: 12px;"><strong>Assigned To:</strong> ${data.name || 'N/A'}</div>
                  <div><strong>Role:</strong> ${data.role || 'N/A'}</div>
                `}
-               ${(isApprovable && !isDesignerRole) ? `
+               ${(isApprovable && !isDesignerRole && !isHomologationRole) ? `
                  <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border-light);" />
                  <div class="form-group" style="margin-bottom: 12px;">
                    <label class="form-label">Comments</label>
@@ -446,7 +451,7 @@ async function renderMyTasks(tc) {
                ` : ''}
              </div>`,
             `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Close</button>
-             ${(isApprovable && !isDesignerRole) ? `
+             ${(isApprovable && !isDesignerRole && !isHomologationRole) ? `
                ${isProjectManagerPartStage ? `<button class="btn btn-outline" style="border-color:#10B981;color:#10B981" id="release-flag-btn">Release Flag</button>` : ''}
                <button class="btn btn-danger" id="reject-stage-btn">Reject</button>
                <button class="btn btn-primary" id="approve-stage-btn">Approve</button>
@@ -592,15 +597,7 @@ async function renderMyTasks(tc) {
                   protoApprovalUserId
                 };
                 if (resolvedType === 'BOM') {
-                  const bomPayload = {
-                    comments,
-                    revertToDesigner: false,
-                    revertThroughPM: false,
-                    selectedPMId: 0,
-                    protoStudyUserId: 0,
-                    protoApprovalUserId: 0
-                  };
-                  await approveBom(entityId, bomPayload);
+                  await approveBom(entityId, payload);
                 } else if (resolvedType === 'PartNumber') {
                   await approvePartNumber(entityId, payload);
                 } else {
@@ -650,15 +647,7 @@ async function renderMyTasks(tc) {
                   protoApprovalUserId
                 };
                 if (resolvedType === 'BOM') {
-                  const bomPayload = {
-                    comments,
-                    revertToDesigner: false,
-                    revertThroughPM: false,
-                    selectedPMId: 0,
-                    protoStudyUserId: 0,
-                    protoApprovalUserId: 0
-                  };
-                  await rejectBom(entityId, bomPayload);
+                  await rejectBom(entityId, payload);
                 } else if (resolvedType === 'PartNumber') {
                   await rejectPartNumber(entityId, payload);
                 } else {
@@ -1011,15 +1000,7 @@ async function renderInProgress(tc) {
                   protoApprovalUserId
                 };
                 if (resolvedType === 'BOM') {
-                  const bomPayload = {
-                    comments,
-                    revertToDesigner: false,
-                    revertThroughPM: false,
-                    selectedPMId: 0,
-                    protoStudyUserId: 0,
-                    protoApprovalUserId: 0
-                  };
-                  await approveBom(entityId, bomPayload);
+                  await approveBom(entityId, payload);
                 } else if (resolvedType === 'PartNumber') {
                   await approvePartNumber(entityId, payload);
                 } else {
@@ -1069,15 +1050,7 @@ async function renderInProgress(tc) {
                   protoApprovalUserId
                 };
                 if (resolvedType === 'BOM') {
-                  const bomPayload = {
-                    comments,
-                    revertToDesigner: false,
-                    revertThroughPM: false,
-                    selectedPMId: 0,
-                    protoStudyUserId: 0,
-                    protoApprovalUserId: 0
-                  };
-                  await rejectBom(entityId, bomPayload);
+                  await rejectBom(entityId, payload);
                 } else if (resolvedType === 'PartNumber') {
                   await rejectPartNumber(entityId, payload);
                 } else {

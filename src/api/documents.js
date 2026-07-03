@@ -62,7 +62,6 @@ export async function getDocumentsByPartNumber(partNumber) {
   return response.json();
 }
 
-
 export async function getDocumentById(id) {
   const response = await authFetch(`/api/documents/${id}`, {
     method: 'GET',
@@ -70,4 +69,38 @@ export async function getDocumentById(id) {
   });
   if (!response.ok) throw new Error(`Failed to fetch document by id ${id} (${response.status})`);
   return response.json();
+}
+
+/**
+ * Fetches the raw file for a document using /api/Documents/{id}/file?inline=true
+ * Returns a blob object URL suitable for use in <img src> or <iframe src>.
+ * Caller must call URL.revokeObjectURL(url) when done to free memory.
+ */
+export async function viewDocumentFile(id) {
+  const response = await authFetch(`/api/Documents/${id}/file?inline=true`, {
+    method: 'GET',
+  });
+  if (!response.ok) throw new Error(`Failed to view document file (${response.status})`);
+  const blob = await response.blob();
+  return { objectUrl: URL.createObjectURL(blob), contentType: blob.type };
+}
+
+/**
+ * Downloads the raw file for a document using /api/Documents/{id}/file
+ * Triggers a browser file download programmatically with JWT auth.
+ */
+export async function downloadDocumentFile(id, filename) {
+  const response = await authFetch(`/api/Documents/${id}/file`, {
+    method: 'GET',
+  });
+  if (!response.ok) throw new Error(`Failed to download document file (${response.status})`);
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename || 'document';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }

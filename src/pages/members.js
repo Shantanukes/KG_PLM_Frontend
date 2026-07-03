@@ -82,7 +82,7 @@ export async function renderMembers(container) {
           <thead>
             <tr style="border-bottom: 1px solid var(--border-light);">
               ${columns.map(col => `<th style="padding: 12px 16px; font-weight: 600; color: var(--text-secondary); text-transform: capitalize; white-space: nowrap;">${col.replace(/([A-Z])/g, ' $1').trim()}</th>`).join('')}
-              ${!(getCurrentUserRole().toLowerCase() === 'designer' || getCurrentUserRole() === '6') ? `<th style="padding: 12px 16px; font-weight: 600; color: var(--text-secondary); white-space: nowrap;">Actions</th>` : ''}
+              ${!(getCurrentUserRole().toLowerCase() === 'designer' || getCurrentUserRole() === '6' || getCurrentUserRole().toLowerCase() === 'homologation' || getCurrentUserRole() === '14') ? `<th style="padding: 12px 16px; font-weight: 600; color: var(--text-secondary); white-space: nowrap;">Actions</th>` : ''}
             </tr>
           </thead>
           <tbody>
@@ -116,7 +116,7 @@ export async function renderMembers(container) {
       }
       return `<td style="padding: 12px 16px; color: var(--text-primary); white-space: nowrap;">${val}</td>`;
     }).join('')}
-                ${!(getCurrentUserRole().toLowerCase() === 'designer' || getCurrentUserRole() === '6') ? `
+                ${!(getCurrentUserRole().toLowerCase() === 'designer' || getCurrentUserRole() === '6' || getCurrentUserRole().toLowerCase() === 'homologation' || getCurrentUserRole() === '14') ? `
                 <td style="padding: 12px 16px; white-space: nowrap;">
                   <button class="btn btn-ghost btn-xs edit-member-btn" data-index="${i}" title="Edit Profile" style="color: var(--primary);">
                     <span class="material-icons-outlined" style="font-size: 18px;">edit</span>

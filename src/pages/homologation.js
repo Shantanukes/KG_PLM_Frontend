@@ -296,13 +296,18 @@ function renderHomologationTab(container) {
     formData.append('Type', '5');          // integer 5 = Homologation (FormData sends as string on wire)
     if (partNumber) formData.append('PartNumber', partNumber);
     if (revision) formData.append('Revision', revision);
-    if (invoiceNum) formData.append('InvoiceNumber', invoiceNum);
-    if (certNum) formData.append('CertificateNumber', certNum);
+    formData.append('InvoiceNumber', invoiceNum || '');
+    formData.append('CertificateNumber', certNum || '');
 
     // IMPORTANT: Do NOT use toISOString() here. The backend C# API expects a simple date format.
     // Sending a full ISO string (with T and Z) causes the C# backend to throw a 500 Internal Server Error FormatException.
-    formData.append('IssueDate', issueDate);
-    formData.append('ExpiryDate', expiryDate);
+    const fmtDate = (d) => {
+      if (!d || !d.includes('-')) return d;
+      const [y, m, day] = d.split('-');
+      return `${m}/${day}/${y}`;
+    };
+    formData.append('IssueDate', fmtDate(issueDate));
+    formData.append('ExpiryDate', fmtDate(expiryDate));
 
     formData.append('file', fileInput.files[0]);
 
