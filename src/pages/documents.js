@@ -1,3 +1,4 @@
+import { devLog } from '../utils.js';
 import { showToast, showModal, navigateTo, getCurrentUserRole } from '../main.js';
 import { getDocuments, getDocumentsByPartNumber, viewDocumentFile, downloadDocumentFile } from '../api/documents.js';
 import { assignWorkflow } from '../api/workflow.js';
@@ -178,7 +179,7 @@ export function renderDocuments(container) {
         documents = [];
       }
     } catch (e) {
-      console.error('Failed to load API docs:', e);
+      devLog('Failed to load API docs:', e);
       documents = [];
       // Show the error reason in the viewer placeholder
       if (vb && e.message && e.message.includes('401')) {
@@ -322,7 +323,7 @@ export function renderDocuments(container) {
           await downloadDocumentFile(d.id, d.fileName || d.drw);
           showToast(`${d.drw} downloaded successfully!`, 'success');
         } catch (err) {
-          console.error('Download failed:', err);
+          devLog('Download failed:', err);
           showToast(`Failed to download ${d.drw}: ${err.message}`, 'error');
         }
       });
@@ -372,7 +373,7 @@ export function renderDocuments(container) {
               applyCurrentFilter();
               showToast(`${d.drw} assigned to workflow!`, 'success');
             } catch (err) {
-              console.error(err);
+              devLog(err);
               showToast('Failed to assign workflow', 'error');
             }
           });
@@ -443,7 +444,7 @@ export function renderDocuments(container) {
       vb.innerHTML = buildViewerMeta(doc, contentHtml);
       showToast(`Viewing: ${doc.drw}`, 'success');
     } catch (err) {
-      console.error('Failed to load file for viewer:', err);
+      devLog('Failed to load file for viewer:', err);
       const msg = err.message?.includes('401')
         ? 'Session expired — please log out and log back in.'
         : `Could not load file: ${err.message}`;
@@ -528,7 +529,7 @@ export function renderDocuments(container) {
       await downloadDocumentFile(docId, docName);
       showToast('Download started!', 'success');
     } catch (err) {
-      console.error('Download failed:', err);
+      devLog('Download failed:', err);
       showToast(`Download failed: ${err.message}`, 'error');
     }
   });
@@ -555,7 +556,7 @@ export function renderDocuments(container) {
         (d.drw && d.drw.toLowerCase().includes(partNumber.toLowerCase()))
       );
     } catch (e) {
-      console.error('Failed to load API docs for search:', e);
+      devLog('Failed to load API docs for search:', e);
       documents = [];
     }
 

@@ -1,6 +1,8 @@
+import { devLog } from '../utils.js';
 import { showToast } from '../main.js';
 import { uploadDocument } from '../api/documents.js';
 import { getPartByNumber } from '../api/parts.js';
+import { getStoredApiBaseUrl } from '../api/client.js';
 
 export function renderHomologation(container) {
   container.innerHTML = `
@@ -138,7 +140,7 @@ function renderHomologationTab(container) {
 
     const rows = uploadedCerts.map(cert => {
       const dateStr = new Date(cert.createdAt).toLocaleDateString();
-      const storageUrl = cert.id ? `http://203.16.201.244:5000/api/Documents/${cert.id}/file` : '#';
+      const storageUrl = cert.id ? `${getStoredApiBaseUrl()}/api/Documents/${cert.id}/file` : '#';
       return `
         <tr>
           <td style="font-weight:500; color:var(--brand-primary);">${cert.drawingNumber || '-'}</td>
@@ -322,7 +324,7 @@ function renderHomologationTab(container) {
           : value;
       }
     });
-    console.log('[HOMOLOGATION UPLOAD] Payload being sent to server:', payloadLog);
+    devLog('[HOMOLOGATION UPLOAD] Payload being sent to server:', payloadLog);
 
     const btn = container.querySelector('#hl-submit');
     try {
@@ -347,7 +349,7 @@ function renderHomologationTab(container) {
         container.querySelector('#hl-reset').click();
       }, 2500);
     } catch (err) {
-      console.error(err);
+      devLog(err);
       showToast(err.message || 'Upload failed.', 'error');
       btn.innerHTML = '<span class="material-icons-outlined" style="font-size:16px;">upload_file</span>Upload Certificate';
       btn.disabled = false;

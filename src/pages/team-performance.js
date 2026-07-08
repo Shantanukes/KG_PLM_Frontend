@@ -1,3 +1,4 @@
+import { devLog } from '../utils.js';
 import { authFetch } from '../api/client.js';
 
 export async function renderTeamPerformance(container) {
@@ -23,7 +24,7 @@ export async function renderTeamPerformance(container) {
       throw new Error('API failed');
     }
   } catch (err) {
-    console.warn("Failed to fetch team performance, using mock data", err);
+    devLog("Failed to fetch team performance, using mock data", err);
     // Mock data reflecting the newly requested schema
     const mockResponse = {
       "teams": [

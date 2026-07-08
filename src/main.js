@@ -2,6 +2,7 @@ import './styles.css';
 import './enterprise-theme.css';
 import { authFetch } from './api/client.js';
 import {
+  TokenStore,
   buildUserFromAuth,
   clearAuthTokens,
   getAccessToken,
@@ -10,16 +11,21 @@ import {
   getRefreshToken,
   getStoredApiBaseUrl,
   loginToBackend,
+  migrateLegacyTokens,
   persistAuthTokens,
+  refreshBackendToken,
   revokeRefreshToken,
 } from './api/index.js';
 import { changePassword } from './api/members.js';
+import { esc } from './utils.js';
 // ── Page modules loaded lazily on first visit ──────────────────────────────
 // This removes ~600 KB of upfront JS parse time from the initial load.
 // Each module is fetched + parsed only when the user navigates to that page.
 
 // ─── Application State ───
+// SECURITY: Session user key kept only for legacy cleanup; session data is now in-memory via TokenStore
 const SESSION_USER_KEY = 'kg_plm_session_user';
+// Flash messages use sessionStorage (auto-cleared on tab close, not localStorage)
 const AUTH_FLASH_MESSAGE_KEY = 'kg_plm_auth_flash_message';
 
 const AUTH_MODE = {
@@ -152,12 +158,14 @@ const FORGOT_ENDPOINT_CANDIDATES = [
 ];
 
 function clearSessionUser() {
-  localStorage.removeItem(SESSION_USER_KEY);
+  // Clean up legacy localStorage entries
+  try { localStorage.removeItem(SESSION_USER_KEY); } catch { /* ignore */ }
   clearAuthTokens();
+  TokenStore.setSessionUser(null);
 }
 
 function persistSessionUser() {
-  localStorage.setItem(SESSION_USER_KEY, JSON.stringify(state.user || DEFAULT_USER_STATE));
+  TokenStore.setSessionUser(state.user || DEFAULT_USER_STATE);
 }
 
 async function requestPasswordResetEmail(apiBaseUrl, email) {
@@ -214,9 +222,9 @@ function resetToLoginView() {
 }
 
 function consumeAuthFlashMessage() {
-  const flash = localStorage.getItem(AUTH_FLASH_MESSAGE_KEY);
+  const flash = sessionStorage.getItem(AUTH_FLASH_MESSAGE_KEY);
   if (!flash) return;
-  localStorage.removeItem(AUTH_FLASH_MESSAGE_KEY);
+  sessionStorage.removeItem(AUTH_FLASH_MESSAGE_KEY);
   showToast(flash, 'success');
 }
 
@@ -513,7 +521,7 @@ function renderResetPasswordView() {
         token: hasToken ? token : '',
       });
       // The view redirects/shows success via AUTH_FLASH_MESSAGE_KEY or other method.
-      localStorage.setItem(AUTH_FLASH_MESSAGE_KEY, 'Password updated successfully. Please login with your new password.');
+      sessionStorage.setItem(AUTH_FLASH_MESSAGE_KEY, 'Password updated successfully. Please login with your new password.');
       resetToLoginView();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unable to update password.';
@@ -556,8 +564,27 @@ function applyRoleAccessUI() {
 
 
 // ─── Init ───
-function init() {
+async function init() {
   consumeAuthFlashMessage();
+
+  // Migrate any legacy localStorage tokens to in-memory TokenStore
+  migrateLegacyTokens();
+
+  // Set up the silent token refresh callback
+  TokenStore.setRefreshCallback(async (refreshToken) => {
+    const apiBaseUrl = getStoredApiBaseUrl();
+    const authPayload = await refreshBackendToken({ apiBaseUrl, refreshToken });
+    persistAuthTokens(authPayload);
+    state.user = buildUserFromAuth(authPayload, state.user?.email || '');
+    TokenStore.setSessionUser(state.user);
+    updateUserIdentityUI();
+  });
+
+  // Set up the idle timeout callback
+  TokenStore.setIdleLogoutCallback(() => {
+    showToast('Session timed out due to inactivity. Please log in again.', 'warning');
+    performLogout();
+  });
 
   const mode = getCurrentAuthMode();
   if (mode === AUTH_MODE.RESET) {
@@ -565,40 +592,77 @@ function init() {
     return;
   }
 
-  // Restore session if tokens exist
-  const sessionUserStr = localStorage.getItem(SESSION_USER_KEY);
-  const hasToken = getAccessToken() || getRefreshToken();
+  // Attempt session restoration from multiple sources:
+  // 1. In-memory TokenStore (if already set, e.g. from legacy migration)
+  // 2. Encrypted sessionStorage refresh token (survives F5 page refresh)
+  // 3. Legacy localStorage session user (one-time migration)
+  let sessionRestored = false;
 
-  if (sessionUserStr && hasToken) {
-    try {
-      state.user = JSON.parse(sessionUserStr);
-      updateUserIdentityUI();
-      applyRoleAccessUI();
+  // Check if we have tokens in memory (from migration or previous setTokens call)
+  let hasToken = getAccessToken() || getRefreshToken();
 
-      const loginScreen = document.getElementById('login-screen');
-      const appShell = document.getElementById('app-shell');
-      if (loginScreen) loginScreen.classList.add('hidden');
-      if (appShell) {
-        appShell.classList.remove('hidden');
-        appShell.style.opacity = '1';
+  // If no tokens in memory, try restoring refresh token from encrypted sessionStorage
+  if (!hasToken) {
+    const restoredRefresh = TokenStore.restoreRefreshToken();
+    if (restoredRefresh) {
+      try {
+        const apiBaseUrl = getStoredApiBaseUrl();
+        const authPayload = await refreshBackendToken({ apiBaseUrl, refreshToken: restoredRefresh });
+        persistAuthTokens(authPayload);
+        state.user = buildUserFromAuth(authPayload, '');
+        TokenStore.setSessionUser(state.user);
+        hasToken = true;
+      } catch {
+        // Refresh failed — clear everything and show login
+        TokenStore.clear();
+        hasToken = false;
       }
-
-      // Restore the exact page they were on, or fallback
-      let initialPage = window.location.pathname.replace(/^\/+/, '') || 'dashboard';
-      if (!canAccessPage(initialPage)) {
-        initialPage = getAllowedPages()[0] || 'dashboard';
-      }
-      navigateTo(initialPage);
-
-      // Listen for unrecoverable 401s from our interceptor
-      window.addEventListener('auth:unauthorized', () => {
-        showToast('Session expired. Please log in again.', 'warning');
-        performLogout();
-      });
-    } catch (err) {
-      console.error('Failed to restore session:', err);
-      clearSessionUser();
     }
+  }
+
+  // Restore user from TokenStore memory (may have been set by migration or refresh)
+  const memoryUser = TokenStore.getSessionUser();
+
+  if (hasToken && memoryUser) {
+    state.user = memoryUser;
+    sessionRestored = true;
+  } else if (hasToken) {
+    // We have tokens but no user object — try to build from legacy localStorage
+    try {
+      const legacyStr = localStorage.getItem(SESSION_USER_KEY);
+      if (legacyStr) {
+        state.user = JSON.parse(legacyStr);
+        TokenStore.setSessionUser(state.user);
+        localStorage.removeItem(SESSION_USER_KEY); // Clean up legacy
+        sessionRestored = true;
+      }
+    } catch { /* ignore */ }
+  }
+
+  if (sessionRestored) {
+    updateUserIdentityUI();
+    applyRoleAccessUI();
+
+    const loginScreen = document.getElementById('login-screen');
+    const appShell = document.getElementById('app-shell');
+    if (loginScreen) loginScreen.classList.add('hidden');
+    if (appShell) {
+      appShell.classList.remove('hidden');
+      appShell.style.opacity = '1';
+    }
+
+    // Restore the exact page they were on, or fallback
+    let initialPage = window.location.pathname.replace(/^\/+/, '') || 'dashboard';
+    if (!canAccessPage(initialPage)) {
+      initialPage = getAllowedPages()[0] || 'dashboard';
+    }
+    navigateTo(initialPage);
+
+    // Listen for unrecoverable 401s from our interceptor
+    window.addEventListener('auth:unauthorized', () => {
+      showToast('Session expired. Please log in again.', 'warning');
+      performLogout();
+    });
   }
 
   const loginForm = document.getElementById('login-form');
@@ -735,14 +799,14 @@ async function handleLogin(e) {
 
 export async function navigateTo(page, pageData) {
   if (!canAccessPage(page)) {
-    showToast(`Access denied for ${state.user.role}`, 'warning');
+    showToast(`Access denied for ${esc(state.user.role)}`, 'warning');
     const container = document.getElementById('page-container');
     if (container) {
       container.innerHTML = `
         <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;text-align:center;">
           <span class="material-icons-outlined" style="font-size:64px;color:#EF4444;margin-bottom:16px;">gpp_bad</span>
           <h2>Access Denied</h2>
-          <p class="text-secondary" style="max-width:400px;margin:8px auto 24px;">Your role (<strong>${state.user.role}</strong>) does not have permission to view this page. If you believe this is an error, please contact your administrator.</p>
+          <p class="text-secondary" style="max-width:400px;margin:8px auto 24px;">Your role (<strong>${esc(state.user.role)}</strong>) does not have permission to view this page. If you believe this is an error, please contact your administrator.</p>
           <button class="btn btn-primary" onclick="window.location.href='/'">Return to Home</button>
         </div>`;
       container.style.opacity = '1';
@@ -884,8 +948,8 @@ function toggleUserMenu(e) {
   panel.style.cssText = `position:fixed;top:${rect.bottom + 8}px;right:${Math.max(12, window.innerWidth - rect.right)}px;background:#FFFFFF;border:1px solid var(--border-light);border-radius:12px;box-shadow:0 10px 30px rgba(15,23,42,0.16);z-index:10001;min-width:220px;padding:8px;`;
   panel.innerHTML = `
     <div style="padding:10px 12px;border-bottom:1px solid var(--border-light)">
-      <div style="font-weight:700;font-size:0.86rem;color:var(--text-primary)">${state.user.name}</div>
-      <div style="font-size:0.75rem;color:var(--text-secondary)">${state.user.role}</div>
+      <div style="font-weight:700;font-size:0.86rem;color:var(--text-primary)">${esc(state.user.name)}</div>
+      <div style="font-size:0.75rem;color:var(--text-secondary)">${esc(state.user.role)}</div>
     </div>
     <button id="user-menu-profile" class="btn btn-ghost btn-sm" style="width:100%;justify-content:flex-start;margin-top:6px;color:var(--text-primary)">
       <span class="material-icons-outlined" style="font-size:16px;margin-right:6px">account_circle</span>Profile Settings
@@ -922,37 +986,24 @@ function openProfileModal() {
   overlay.className = 'modal-overlay';
   overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:99999;backdrop-filter:blur(4px);';
 
+  // SECURITY: Role is read-only — only Super Admin can change roles via Admin panel
   overlay.innerHTML = `
     <div class="modal-content card fade-in" style="width: 400px; padding: 24px; border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,0.2);">
       <h3 style="margin: 0 0 16px 0;">Edit Profile</h3>
       <div class="form-group" style="margin-bottom: 12px;">
         <label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">Full Name <span style="color:#DC2626">*</span></label>
-        <input type="text" id="prof-fullname" class="form-input" style="width:100%;" value="${state.user.name || ''}" />
+        <input type="text" id="prof-fullname" class="form-input" style="width:100%;" value="${esc(state.user.name || '')}" />
       </div>
       <div class="form-group" style="margin-bottom: 12px;">
         <label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">Employee ID</label>
         <input type="text" id="prof-empid" class="form-input" style="width:100%;" placeholder="e.g. EMP-101" />
       </div>
       <div class="form-group" style="margin-bottom: 12px;">
-        <label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">Role / Access Profile <span style="color:#DC2626">*</span></label>
-        <select class="form-select" id="prof-role" style="width:100%;">
-          <option value="0">None</option>
-          <option value="8">R&D Head</option>
-          <option value="7">Project Head</option>
-          <option value="6">Designer</option>
-          <option value="4">COE Head</option>
-          <option value="3">Project Manager</option>
-          <option value="2">Quality Auditor</option>
-          <option value="1">Super Admin</option>
-          <option value="9">Sourcing</option>
-          <option value="10">Proto</option>
-          <option value="11">Founder</option>
-          <option value="12">Co-Founder</option>
-          <option value="13">Design Head</option>
-          <option value="14">Homologation</option>
-        </select>
+        <label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">Role / Access Profile</label>
+        <div class="form-input" style="width:100%;background:var(--bg-muted);opacity:0.7;cursor:not-allowed;padding:8px 12px;border-radius:8px;border:1px solid var(--border-color);">${esc(state.user.role || 'N/A')}</div>
+        <span style="font-size:11px;color:var(--text-secondary);margin-top:4px;display:block;">Role changes require Super Admin access via Admin panel.</span>
       </div>
-      <div class="form-group" style="margin-bottom: 24  px;">
+      <div class="form-group" style="margin-bottom: 24px;">
         <label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">Department <span style="color:#DC2626">*</span></label>
         <select class="form-select" id="prof-dept" style="width:100%;">
           <option value="0">None</option>
@@ -978,18 +1029,17 @@ function openProfileModal() {
     const fullName = document.getElementById('prof-fullname').value.trim();
     const empId = document.getElementById('prof-empid').value.trim() || null;
     const dept = parseInt(document.getElementById('prof-dept').value, 10);
-    const role = parseInt(document.getElementById('prof-role').value, 10);
 
     if (!fullName || isNaN(dept)) {
       showToast('Full name and valid department ID are required.', 'warning');
       return;
     }
 
+    // SECURITY: Role is NOT included in the payload — prevents self-escalation
     const payload = {
       fullName,
       employeeId: empId,
       department: dept,
-      role: role
     };
 
     btn.disabled = true;
@@ -1004,7 +1054,7 @@ function openProfileModal() {
       if (res.ok) {
         showToast('Profile updated successfully!', 'success');
         state.user.name = fullName;
-        localStorage.setItem(SESSION_USER_KEY, JSON.stringify(state.user));
+        TokenStore.setSessionUser(state.user);
 
         // Update avatars safely
         const initials = fullName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
@@ -1021,8 +1071,7 @@ function openProfileModal() {
         btn.disabled = false;
         btn.textContent = 'Save Profile';
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
       showToast('Network error while updating profile.', 'error');
       btn.disabled = false;
       btn.textContent = 'Save Profile';
@@ -1101,6 +1150,7 @@ function initCommandPalette() {
 }
 
 // ─── Global Toast ───
+// SECURITY: Uses textContent for message to prevent XSS injection via toast messages
 export function showToast(message, type = 'info') {
   const existing = document.querySelector('.toast');
   if (existing) existing.remove();
@@ -1109,19 +1159,28 @@ export function showToast(message, type = 'info') {
   const colors = { success: '#059669', error: '#DC2626', warning: '#D97706', info: '#2563EB' };
   const icons = { success: 'check_circle', error: 'error', warning: 'warning', info: 'info' };
   toast.style.cssText = `position:fixed;bottom:24px;right:24px;background:#1F2937;color:white;padding:12px 20px;border-radius:10px;display:flex;align-items:center;gap:10px;font-size:0.857rem;font-weight:500;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.2);animation:slideInRight 0.3s ease;max-width:380px;`;
-  toast.innerHTML = `<span class="material-icons-outlined" style="font-size:18px;color:${colors[type]}">${icons[type]}</span><span>${message}</span>`;
+  // Build icon via innerHTML (safe — icons[type] is from a fixed map)
+  const iconSpan = document.createElement('span');
+  iconSpan.className = 'material-icons-outlined';
+  iconSpan.style.cssText = `font-size:18px;color:${colors[type]}`;
+  iconSpan.textContent = icons[type];
+  const msgSpan = document.createElement('span');
+  msgSpan.textContent = message; // SAFE: textContent escapes HTML
+  toast.appendChild(iconSpan);
+  toast.appendChild(msgSpan);
   document.body.appendChild(toast);
   setTimeout(() => { toast.style.animation = 'fadeOut 0.3s ease forwards'; setTimeout(() => toast.remove(), 300); }, 3000);
 }
 
 // ─── Global Modal ───
+// SECURITY: Title is sanitized via esc() to prevent XSS
 export function showModal(title, bodyHTML, footerHTML = '') {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
     <div class="modal">
       <div class="modal-header">
-        <div class="modal-title">${title}</div>
+        <div class="modal-title">${esc(title)}</div>
         <button class="modal-close" id="modal-close-btn"><span class="material-icons-outlined">close</span></button>
       </div>
       <div class="modal-body">${bodyHTML}</div>

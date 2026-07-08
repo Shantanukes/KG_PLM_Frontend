@@ -1,22 +1,23 @@
 import { showToast, showModal, navigateTo } from '../main.js';
-import { assignWorkflow, fetchWorkflows, fetchCurrentApprovalStage, fetchPendingApprovals, approvePartNumber, rejectPartNumber, approveDrawing, rejectDrawing, authFetch, fetchPartApprovalHistory, fetchDesignerTasks, getPartById, updatePart } from '../api/index.js';
+import { assignWorkflow, fetchWorkflows, fetchCurrentApprovalStage, fetchPendingApprovals, approvePartNumber, rejectPartNumber, approveDrawing, rejectDrawing, authFetch, fetchPartApprovalHistory, fetchDesignerTasks, getPartById, updatePart, TokenStore } from '../api/index.js';
 import { approveBom, rejectBom } from '../api/bom.js';
+import { devLog } from '../utils.js';
 
 const RUNTIME_KEY = 'kg_plm_runtime';
 const SESSION_USER_KEY = 'kg_plm_session_user';
 
 function getCurrentUserName() {
   try {
-    const sessionUser = JSON.parse(localStorage.getItem(SESSION_USER_KEY) || '{}');
-    return sessionUser?.name || 'shantanu';
+    const sessionUser = TokenStore.getSessionUser() || {};
+    return sessionUser?.name || 'User';
   } catch {
-    return 'shantanu';
+    return 'User';
   }
 }
 
 function getCurrentUserRole() {
   try {
-    const sessionUser = JSON.parse(localStorage.getItem(SESSION_USER_KEY) || '{}');
+    const sessionUser = TokenStore.getSessionUser() || {};
     return sessionUser?.role || '';
   } catch {
     return '';
@@ -224,7 +225,7 @@ async function renderMyTasks(tc) {
       };
     });
   } catch (err) {
-    console.error('Failed to load workflows', err);
+    devLog('Failed to load workflows', err);
   }
 
   let designerTasksHtml = '';
@@ -234,7 +235,7 @@ async function renderMyTasks(tc) {
       const apiData = await fetchDesignerTasks();
       designerTasks = Array.isArray(apiData) ? apiData : (apiData?.items || []);
     } catch (err) {
-      console.error('Failed to load designer tasks', err);
+      devLog('Failed to load designer tasks', err);
     }
 
     const tableRows = designerTasks.length ? designerTasks.map(t => {
@@ -588,7 +589,7 @@ async function renderMyTasks(tc) {
                   protoApprovalSelect.innerHTML = optionsHtml;
                 }
               } catch (err) {
-                console.error('Failed to load members for proto users', err);
+                devLog('Failed to load members for proto users', err);
               }
             }
 
@@ -764,7 +765,7 @@ async function renderInProgress(tc) {
       };
     });
   } catch (err) {
-    console.error('Failed to load Pending workflows', err);
+    devLog('Failed to load Pending workflows', err);
   }
 
   tc.innerHTML = `
@@ -999,7 +1000,7 @@ async function renderInProgress(tc) {
                   protoApprovalSelect.innerHTML = optionsHtml;
                 }
               } catch (err) {
-                console.error('Failed to load members for proto users', err);
+                devLog('Failed to load members for proto users', err);
               }
             }
 
@@ -1174,7 +1175,7 @@ async function renderCompleted(tc) {
       };
     });
   } catch (err) {
-    console.error('Failed to load completed workflows', err);
+    devLog('Failed to load completed workflows', err);
   }
 
   tc.innerHTML = `
@@ -1258,7 +1259,7 @@ async function renderHistory(tc) {
     historyItems.sort((a, b) => b.timestamp - a.timestamp);
 
   } catch (err) {
-    console.error('Failed to load workflow history', err);
+    devLog('Failed to load workflow history', err);
   }
 
   tc.innerHTML = `

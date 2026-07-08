@@ -1,3 +1,4 @@
+import { devLog } from '../utils.js';
 import { authFetch } from '../api/client.js';
 
 export async function renderBOMLifecycle(container) {
@@ -21,7 +22,7 @@ export async function renderBOMLifecycle(container) {
       isError = true;
     }
   } catch (err) {
-    console.warn("Failed to fetch BOM analytics, using requested mock error state", err);
+    devLog("Failed to fetch BOM analytics, using requested mock error state", err);
     isError = true;
     data = {
       "status": 500,

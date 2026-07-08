@@ -1,11 +1,11 @@
 import { showModal, showToast } from '../main.js';
+import { TokenStore } from '../api/index.js';
 
 const RUNTIME_KEY = 'kg_plm_runtime';
-const SESSION_USER_KEY = 'kg_plm_session_user';
 
 function getCurrentSessionUser() {
   try {
-    return JSON.parse(localStorage.getItem(SESSION_USER_KEY) || '{}');
+    return TokenStore.getSessionUser() || {};
   } catch {
     return {};
   }

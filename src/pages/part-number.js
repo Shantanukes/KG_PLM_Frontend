@@ -1,3 +1,4 @@
+import { devLog } from '../utils.js';
 import { showToast } from '../main.js';
 import { authFetch } from '../api/client.js';
 
@@ -101,7 +102,7 @@ async function renderProductCategoriesTab(tc) {
       </tr>
     `);
   } catch (err) {
-    console.error(err);
+    devLog(err);
     showToast('Error loading product categories', 'error');
     tc.innerHTML = '<div style="padding: 20px; color: #DC2626;">Failed to load product categories.</div>';
   }
@@ -123,7 +124,7 @@ async function renderPartGroupsTab(tc) {
       `;
     });
   } catch (err) {
-    console.error(err);
+    devLog(err);
     showToast('Error loading part groups', 'error');
     tc.innerHTML = '<div style="padding: 20px; color: #DC2626;">Failed to load part groups.</div>';
   }
@@ -142,7 +143,7 @@ async function renderMachineStatusTab(tc) {
       </tr>
     `);
   } catch (err) {
-    console.error(err);
+    devLog(err);
     showToast('Error loading machining statuses', 'error');
     tc.innerHTML = '<div style="padding: 20px; color: #DC2626;">Failed to load machining statuses.</div>';
   }
@@ -163,7 +164,7 @@ async function renderDevStatusTab(tc) {
       </tr>
     `);
   } catch (err) {
-    console.error(err);
+    devLog(err);
     showToast('Error loading dev statuses', 'error');
     tc.innerHTML = '<div style="padding: 20px; color: #DC2626;">Failed to load dev statuses.</div>';
   }

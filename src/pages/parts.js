@@ -1,3 +1,4 @@
+import { devLog } from '../utils.js';
 import { showToast, showModal, navigateTo, getCurrentUserRole } from '../main.js';
 import { authFetch } from '../api/client.js';
 import { createPart, getParts, getPartById, getPartByNumber, updatePart, revisePart, deletePart, fetchSuppliers } from '../api/parts.js';
@@ -95,7 +96,7 @@ async function getNextSerial({ categoryCode, modelCode, groupCode, subCode }) {
       }
     });
   } catch (e) {
-    console.warn('Failed to fetch parts for serial', e);
+    devLog('Failed to fetch parts for serial', e);
   }
   return String(Math.min(999, maxSerial + 1)).padStart(3, '0');
 }
@@ -353,7 +354,7 @@ export function renderParts(container) {
             } else {
               let errorText = '';
               try { errorText = await res.text(); } catch (e) { }
-              console.error('Server error response:', errorText);
+              devLog('Server error response:', errorText);
               showToast('Failed to submit request.', 'error');
             }
           } catch (e) {
@@ -425,7 +426,7 @@ async function renderPartRequests(tc) {
       </div>
     `;
   } catch (err) {
-    console.error('Error fetching part requests:', err);
+    devLog('Error fetching part requests:', err);
     tc.innerHTML = `<div class="empty-state"><span class="material-icons-outlined" style="font-size:48px; color:#DC2626">error</span><p>Could not load part requests.</p><p style="font-size:12px;color:var(--text-tertiary)">${err.message}</p></div>`;
   }
 }
@@ -549,7 +550,7 @@ async function renderPendingParts(tc) {
       });
     });
   } catch (err) {
-    console.error('Error fetching pending parts:', err);
+    devLog('Error fetching pending parts:', err);
     tc.innerHTML = `<div class="empty-state"><span class="material-icons-outlined" style="font-size:48px; color:#DC2626">error</span><p>Could not load pending parts.</p><p style="font-size:12px;color:var(--text-tertiary)">${err.message}</p></div>`;
   }
 }
@@ -566,7 +567,7 @@ async function openApproveRequestModal(req, tc) {
       ).join('');
     }
   } catch (err) {
-    console.error('Error fetching group numbers:', err);
+    devLog('Error fetching group numbers:', err);
   }
 
   let bomOptionsHtml = '';
@@ -580,7 +581,7 @@ async function openApproveRequestModal(req, tc) {
       bomOptionsHtml += `<option value="${label}"></option>`;
     });
   } catch (err) {
-    console.error('Error fetching BOMs:', err);
+    devLog('Error fetching BOMs:', err);
   }
 
   showModal(
@@ -757,7 +758,7 @@ async function openApproveRequestModal(req, tc) {
       quantity: parseInt(document.getElementById('appr-qty')?.value || "1", 10),
       homologationStatus: Number(document.getElementById('appr-homologation')?.value || 0)
     };
-    console.log("Approve & Fulfill Payload:", JSON.stringify(payload, null, 2));
+    devLog("Approve & Fulfill Payload:", JSON.stringify(payload, null, 2));
 
     try {
       const res = await authFetch(`/api/PartRequests/${req.id}/fulfill`, {
@@ -773,7 +774,7 @@ async function openApproveRequestModal(req, tc) {
         showToast('Failed to fulfill part request.', 'error');
       }
     } catch (err) {
-      console.error(err);
+      devLog(err);
       showToast('Error fulfilling: ' + err.message, 'error');
     }
   });
@@ -792,7 +793,7 @@ async function openCreateBomModal() {
       ).join('');
     }
   } catch (err) {
-    console.error('Error fetching group numbers:', err);
+    devLog('Error fetching group numbers:', err);
   }
 
   showModal(
@@ -911,7 +912,7 @@ async function openCreateBomModal() {
       backendId = Number(newBomResp?.id || newBomResp?.bomId || 0) || null;
       showToast(`BOM ${bomNumber} created on server.`, 'success');
     } catch (e) {
-      console.error('[BOM CREATE] Server error:', e);
+      devLog('[BOM CREATE] Server error:', e);
       showToast(`BOM saved locally. Server error: ${e.message || 'Unknown'}`, 'warning');
     }
 
@@ -951,7 +952,7 @@ async function loadServerBomTree(rootBomId) {
       // TODO: merge serverTree into BOM_TREE here if needed
     }
   } catch (e) {
-    console.warn('[BOM LOAD] Failed to fetch server BOM tree:', e.message);
+    devLog('[BOM LOAD] Failed to fetch server BOM tree:', e.message);
   }
 }
 
@@ -1086,7 +1087,7 @@ function renderBomNav(tc) {
           await updatePart(selectedPartId, payload);
           showToast('Part updated on server.', 'success');
         } catch (err) {
-          console.error('[PART UPDATE]', err);
+          devLog('[PART UPDATE]', err);
           p.name = payload.name;
           p.description = payload.description;
           p.makeBuy = payload.makeBuy === 0 ? 'Make (In-house)' : 'Buy';
@@ -1130,7 +1131,7 @@ function renderBomNav(tc) {
         `<table class="data-table"><thead><tr><th>BOM</th><th>Assembly</th><th>Model</th><th>Rev</th><th>Qty</th></tr></thead>
          <tbody>${bodyRows || '<tr><td colspan="5" class="text-xs text-secondary">No parent assemblies found.</td></tr>'}</tbody></table>`, '');
     } catch (err) {
-      console.error('[WHERE-USED]', err);
+      devLog('[WHERE-USED]', err);
       showModal(`Where Used: ${p.pn}`,
         `<div class="text-xs text-secondary">Failed to load where-used data: ${err.message}</div>`, '');
     }
@@ -1349,7 +1350,7 @@ function renderPartDetail(id) {
         showModal(`${docName}`, contentHtml, `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Close</button>`);
         setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
       } catch (err) {
-        console.error(err);
+        devLog(err);
         showToast(`Failed to load ${docName}: ${err.message}`, 'error');
       }
     });
@@ -1370,7 +1371,7 @@ function renderPartDetail(id) {
         await downloadDocumentFile(docId, docFile);
         showToast('Download started!', 'success');
       } catch (err) {
-        console.error(err);
+        devLog(err);
         showToast(`Failed to download: ${err.message}`, 'error');
       }
     });
@@ -1610,7 +1611,7 @@ async function renderPartSearch(tc) {
       }
       displayParts(items);
     } catch (err) {
-      console.error('[PARTS GET]', err);
+      devLog('[PARTS GET]', err);
       tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:red">Failed to load parts from server.</td></tr>';
     }
   };
@@ -1654,7 +1655,7 @@ async function renderPartSearch(tc) {
         await loadAll(params);
       }
     } catch (err) {
-      console.error('[PARTS SEARCH]', err);
+      devLog('[PARTS SEARCH]', err);
       tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:red">Search failed.</td></tr>';
     }
   });
@@ -1726,7 +1727,7 @@ function openApiPartEditModal(p, onSaved) {
         document.querySelector('.modal-overlay')?.remove();
         onSaved?.();
       } catch (err) {
-        console.error('[PART UPDATE]', err);
+        devLog('[PART UPDATE]', err);
         showToast('Error updating part via API.', 'error');
         document.querySelector('.modal-overlay')?.remove();
       }
@@ -1790,7 +1791,7 @@ function openRevisePartModal(p, onRevised) {
           }
         }
       } catch (err) {
-        console.error('Failed to load designers:', err);
+        devLog('Failed to load designers:', err);
       }
     };
     loadDesigners();
@@ -1826,7 +1827,7 @@ function openRevisePartModal(p, onRevised) {
         btn.textContent = 'Done ✓';
         onRevised?.();
       } catch (err) {
-        console.error('[REVISE PART]', err);
+        devLog('[REVISE PART]', err);
         if (preview) {
           preview.style.display = 'block';
           preview.textContent = `Error: ${err.message}`;
@@ -1896,7 +1897,7 @@ async function renderCreatePart(tc) {
       standardGroups = allGroups.filter(g => !g.isHardwareGroup);
     }
   } catch (err) {
-    console.error('Error fetching group numbers:', err);
+    devLog('Error fetching group numbers:', err);
   }
 
   let bomOptionsHtml = '';
@@ -1910,7 +1911,7 @@ async function renderCreatePart(tc) {
       bomOptionsHtml += `<option value="${label}"></option>`;
     });
   } catch (err) {
-    console.error('Error fetching BOMs for create part:', err);
+    devLog('Error fetching BOMs for create part:', err);
   }
 
 
@@ -2146,7 +2147,7 @@ async function renderCreatePart(tc) {
         }
       }
     } catch (err) {
-      console.warn('Failed to load designers for Create Part', err);
+      devLog('Failed to load designers for Create Part', err);
     }
   };
   loadDesigners();
@@ -2199,7 +2200,7 @@ async function renderCreatePart(tc) {
       homologationStatus: Number(tc.querySelector('#cp-homo')?.value || 0),
       assignedToDesignerUserId: tc.querySelector('#cp-designer')?.value ? Number(tc.querySelector('#cp-designer').value) : null
     };
-    console.log("Create Part Payload:", JSON.stringify(payload, null, 2));
+    devLog("Create Part Payload:", JSON.stringify(payload, null, 2));
 
     const submitBtn = tc.querySelector('#cp-submit');
     if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<span class="material-icons-outlined" style="font-size:16px">autorenew</span>Creating…'; }
@@ -2209,7 +2210,7 @@ async function renderCreatePart(tc) {
       showToast(`Part ${generatedPartNumber} created and submitted for review!`, 'success');
       setTimeout(() => navigateTo('workflows'), 1500);
     } catch (err) {
-      console.error('[PART CREATE] Error:', err);
+      devLog('[PART CREATE] Error:', err);
       showToast(err instanceof Error ? err.message : 'Unable to create part.', 'error');
       if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = '<span class="material-icons-outlined" style="font-size:16px">send</span>Create & Submit for Review'; }
     }

@@ -1,3 +1,4 @@
+import { devLog } from '../utils.js';
 import { showToast, showModal, navigateTo } from '../main.js';
 import { authFetch } from '../api/client.js';
 
@@ -544,7 +545,7 @@ function renderNewECNForm(tc) {
         contentDiv.innerHTML = `<div style="padding:12px 0;color:var(--danger-main,#DC2626);font-size:0.82rem;">Failed to load BOM preview (HTTP ${res.status})${errBody ? ': ' + errBody.slice(0, 120) : ''}</div>`;
       }
     } catch (err) {
-      console.error('BOM preview error:', err);
+      devLog('BOM preview error:', err);
       resolvedPartIds = [];
       contentDiv.innerHTML = '<div style="padding:12px 0;color:var(--danger-main,#DC2626);font-size:0.82rem;">Network error fetching BOM preview.</div>';
     } finally {
@@ -717,7 +718,7 @@ function renderNewECNForm(tc) {
         showToast('Failed to submit ECN — server returned ' + res.status + (errText ? ': ' + errText.slice(0, 100) : ''), 'error');
       }
     } catch (err) {
-      console.error('ECN submit error:', err);
+      devLog('ECN submit error:', err);
       showToast('Network error while submitting ECN.', 'error');
     } finally {
       btn.disabled = false;

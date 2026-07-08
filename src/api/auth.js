@@ -1,3 +1,5 @@
+import { TokenStore } from './tokenStore.js';
+
 const AUTH_ACCESS_TOKEN_KEY = 'kg_plm_access_token';
 const AUTH_REFRESH_TOKEN_KEY = 'kg_plm_refresh_token';
 
@@ -123,20 +125,41 @@ export async function revokeRefreshToken({ apiBaseUrl, refreshToken }) {
   });
 }
 
+// ── Secure Token Persistence (in-memory via TokenStore) ─────────────────────
+// SECURITY: Tokens are stored in JS memory, NOT in localStorage.
+// The refresh token is encrypted and stored in sessionStorage for F5 resilience.
+
 export function persistAuthTokens(payload) {
-  if (payload.accessToken) {
-    localStorage.setItem(AUTH_ACCESS_TOKEN_KEY, payload.accessToken);
-  }
-  if (payload.refreshToken) {
-    localStorage.setItem(AUTH_REFRESH_TOKEN_KEY, payload.refreshToken);
-  }
+  TokenStore.setTokens(payload.accessToken || '', payload.refreshToken || '');
 }
 
 export function clearAuthTokens() {
-  localStorage.removeItem(AUTH_ACCESS_TOKEN_KEY);
-  localStorage.removeItem(AUTH_REFRESH_TOKEN_KEY);
+  TokenStore.clear();
+  // Also clean up any legacy localStorage tokens from before this migration
+  try {
+    localStorage.removeItem(AUTH_ACCESS_TOKEN_KEY);
+    localStorage.removeItem(AUTH_REFRESH_TOKEN_KEY);
+  } catch { /* ignore */ }
 }
 
 export function getRefreshToken() {
-  return localStorage.getItem(AUTH_REFRESH_TOKEN_KEY) || '';
+  return TokenStore.getRefreshToken();
+}
+
+
+
+/**
+ * Migrate any legacy localStorage tokens to the new TokenStore on first load.
+ * This runs once and then removes the localStorage entries.
+ */
+export function migrateLegacyTokens() {
+  try {
+    const legacyAccess = localStorage.getItem(AUTH_ACCESS_TOKEN_KEY);
+    const legacyRefresh = localStorage.getItem(AUTH_REFRESH_TOKEN_KEY);
+    if (legacyAccess || legacyRefresh) {
+      TokenStore.setTokens(legacyAccess || '', legacyRefresh || '');
+      localStorage.removeItem(AUTH_ACCESS_TOKEN_KEY);
+      localStorage.removeItem(AUTH_REFRESH_TOKEN_KEY);
+    }
+  } catch { /* ignore */ }
 }

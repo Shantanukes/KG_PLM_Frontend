@@ -1,3 +1,4 @@
+import { devLog } from '../utils.js';
 import { authFetch } from '../api/client.js';
 import { getCurrentUserRole } from '../main.js';
 
@@ -61,7 +62,7 @@ export async function renderMembers(container) {
         contentDiv.innerHTML = `<div style="padding: 40px; text-align: center; color: var(--text-secondary);">Failed to load members. Server responded with status ${res.status}.</div>`;
       }
     } catch (error) {
-      console.error('Error fetching members:', error);
+      devLog('Error fetching members:', error);
       contentDiv.innerHTML = `<div style="padding: 40px; text-align: center; color: var(--text-secondary);">Network error while loading members.</div>`;
     }
   };
@@ -226,7 +227,7 @@ export async function renderMembers(container) {
           btn.textContent = 'Save Profile';
         }
       } catch (err) {
-        console.error(err);
+        devLog(err);
         if (window.showToast) window.showToast('Network error while updating profile.', 'error');
         btn.disabled = false;
         btn.textContent = 'Save Profile';

@@ -1,3 +1,4 @@
+import { devLog } from '../utils.js';
 import { authFetch } from '../api/client.js';
 
 export async function renderExecutiveAnalytics(container) {
@@ -20,7 +21,7 @@ export async function renderExecutiveAnalytics(container) {
       throw new Error('API failed');
     }
   } catch (err) {
-    console.warn("Failed to fetch executive analytics, using mock data", err);
+    devLog("Failed to fetch executive analytics, using mock data", err);
     data = {
       "totalParts": 265, "totalBOMs": 10, "totalECNs": 0, "totalDocuments": 25,
       "totalVehicleModels": 35, "totalSuppliers": 5, "totalTeams": 6, "totalUsers": 22,

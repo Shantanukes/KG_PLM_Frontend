@@ -1,3 +1,4 @@
+export * from './tokenStore.js';
 export * from './client.js';
 export * from './auth.js';
 export * from './members.js';

@@ -1,18 +1,25 @@
-// API Base URL — pulled from env first, then a safe fallback
-// Set VITE_API_BASE_URL in your .env file for production
-const DEFAULT_API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || 'http://203.16.201.244:5000';
-const AUTH_ACCESS_TOKEN_KEY = 'kg_plm_access_token';
+// API Base URL — pulled from env (required for production)
+// Set VITE_API_BASE_URL in your .env file
+import { TokenStore } from './tokenStore.js';
+import { refreshBackendToken, extractAuthPayload, buildUserFromAuth } from './auth.js';
+
+const DEFAULT_API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || '';
 
 export function normalizeApiBaseUrl(url) {
   return String(url || '').trim().replace(/\/$/, '');
 }
 
 export function getStoredApiBaseUrl() {
-  return normalizeApiBaseUrl(DEFAULT_API_BASE_URL) || window.location.origin;
+  const url = normalizeApiBaseUrl(DEFAULT_API_BASE_URL);
+  if (!url) {
+    // Fallback to current origin in production (assumes API is on the same domain or proxied)
+    return window.location.origin;
+  }
+  return url;
 }
 
 export function getAccessToken() {
-  return localStorage.getItem(AUTH_ACCESS_TOKEN_KEY) || '';
+  return TokenStore.getAccessToken();
 }
 
 // ── Request Deduplication ────────────────────────────────────────────────────
@@ -61,14 +68,54 @@ export async function apiRequest(pathOrUrl, options = {}) {
 }
 
 export function getCurrentRoleFromStorage() {
+  // Read from in-memory session user instead of localStorage
   try {
-    const stored = localStorage.getItem('kg_plm_session_user');
-    if (stored) {
-      const user = JSON.parse(stored);
+    const user = TokenStore.getSessionUser();
+    if (user) {
       return String(user.role || '').toLowerCase().replace(/[-\s]/g, '');
     }
-  } catch (e) { }
+  } catch { }
   return '';
+}
+
+// ── Silent Token Refresh on 401 ──────────────────────────────────────────────
+// When a 401 is received, attempt to refresh the token silently before
+// dispatching the auth:unauthorized event. Uses a single in-flight refresh
+// promise to avoid multiple concurrent refresh attempts.
+let _refreshPromise = null;
+
+async function _attemptSilentRefresh() {
+  const refreshToken = TokenStore.getRefreshToken();
+  if (!refreshToken) return false;
+
+  // Reuse existing refresh attempt if one is in-flight
+  if (_refreshPromise) {
+    try {
+      await _refreshPromise;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  _refreshPromise = (async () => {
+    try {
+      const apiBaseUrl = getStoredApiBaseUrl();
+      const authPayload = await refreshBackendToken({ apiBaseUrl, refreshToken });
+      // Update TokenStore with new tokens
+      TokenStore.setTokens(authPayload.accessToken || '', authPayload.refreshToken || '');
+      // Rebuild session user from new token
+      const user = buildUserFromAuth(authPayload, '');
+      TokenStore.setSessionUser(user);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      _refreshPromise = null;
+    }
+  })();
+
+  return _refreshPromise;
 }
 
 
@@ -92,10 +139,26 @@ export async function authFetch(pathOrUrl, options = {}) {
     requestOptions.headers.Authorization = `Bearer ${accessToken}`;
   }
 
-  const response = await apiRequest(pathOrUrl, requestOptions);
+  let response = await apiRequest(pathOrUrl, requestOptions);
 
+  // On 401, attempt silent token refresh and retry the request ONCE
   if (response.status === 401) {
-    window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+    const refreshed = await _attemptSilentRefresh();
+    if (refreshed) {
+      // Retry the original request with the new token
+      const newToken = getAccessToken();
+      const retryOptions = { ...(options || {}) };
+      retryOptions.headers = { ...(options?.headers || {}) };
+      if (newToken) {
+        retryOptions.headers.Authorization = `Bearer ${newToken}`;
+      }
+      response = await apiRequest(pathOrUrl, retryOptions);
+    }
+
+    // If still 401 after refresh attempt, dispatch unauthorized event
+    if (response.status === 401) {
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+    }
   }
 
   return response;

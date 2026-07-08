@@ -1,3 +1,4 @@
+import { devLog } from '../utils.js';
 import { authFetch } from '../api/client.js';
 
 export async function renderECNLifecycle(container) {
@@ -20,7 +21,7 @@ export async function renderECNLifecycle(container) {
       throw new Error('API failed');
     }
   } catch (err) {
-    console.warn("Failed to fetch ECN analytics, using mock data", err);
+    devLog("Failed to fetch ECN analytics, using mock data", err);
     // Mock data using the provided schema
     data = {
       "totalECNs": 24,

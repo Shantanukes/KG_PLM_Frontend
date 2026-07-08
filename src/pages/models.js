@@ -1,3 +1,4 @@
+import { devLog } from '../utils.js';
 import { showToast, showModal, navigateTo } from '../main.js';
 import { authFetch } from '../api/client.js';
 import { getVehicleModels, createVehicleModel, updateVehicleModel, deleteVehicleModel } from '../api/vehicles.js';
@@ -73,7 +74,7 @@ export function renderModels(container) {
           // Re-render the catalogue to fetch new models
           renderCatalogue(container.querySelector('#mdl-content'));
         } catch (err) {
-          console.error(err);
+          devLog(err);
           showToast('Failed to create model', 'error');
           btn.innerHTML = originalText;
           btn.disabled = false;
@@ -157,7 +158,7 @@ function renderCatalogue(tc) {
   getVehicleModels()
     .then(models => buildCatalogueCards(tc, models))
     .catch(err => {
-      console.error('[MODELS]', err);
+      devLog('[MODELS]', err);
       showToast('Failed to load vehicle models from server.', 'error');
       tc.querySelector('#model-cards').innerHTML =
         `<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-secondary)">
@@ -313,7 +314,7 @@ function buildCatalogueCards(tc, models) {
             showToast(`Model "${name}" successfully updated!`, 'success');
             renderCatalogue(tc);
           } catch (err) {
-            console.error(err);
+            devLog(err);
             showToast('Failed to update model', 'error');
             submitBtn.innerHTML = originalText;
             submitBtn.disabled = false;
@@ -348,7 +349,7 @@ function buildCatalogueCards(tc, models) {
             showToast(`Model "${modelName}" deleted.`, 'success');
             renderModelTab(tc, 'catalogue');
           } catch (err) {
-            console.error(err);
+            devLog(err);
             showToast('Failed to delete model', 'error');
             submitBtn.innerHTML = 'Delete';
             submitBtn.disabled = false;

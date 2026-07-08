@@ -1,3 +1,4 @@
+import { devLog } from '../utils.js';
 import { authFetch } from '../api/client.js';
 
 export async function renderSuppliers(container) {
@@ -62,7 +63,7 @@ export async function renderSuppliers(container) {
         contentDiv.innerHTML = `<div style="padding: 40px; text-align: center; color: var(--text-secondary);">Failed to load suppliers. Server responded with status ${res.status}.</div>`;
       }
     } catch (error) {
-      console.error('Error fetching suppliers:', error);
+      devLog('Error fetching suppliers:', error);
       contentDiv.innerHTML = `<div style="padding: 40px; text-align: center; color: var(--text-secondary);">Network error while loading suppliers.</div>`;
     }
   };
@@ -131,7 +132,7 @@ export async function renderSuppliers(container) {
         contentDiv.innerHTML = `<div style="padding: 40px; text-align: center; color: var(--text-secondary);">Failed to search supplier. Status ${res.status}.</div>`;
       }
     } catch (error) {
-      console.error('Error searching supplier:', error);
+      devLog('Error searching supplier:', error);
       contentDiv.innerHTML = `<div style="padding: 40px; text-align: center; color: var(--text-secondary);">Network error while searching supplier.</div>`;
     }
   };

@@ -1,3 +1,4 @@
+import { devLog } from '../utils.js';
 import { authFetch } from '../api/client.js';
 
 export async function renderPartsLifecycle(container) {
@@ -19,7 +20,7 @@ export async function renderPartsLifecycle(container) {
       throw new Error('API failed');
     }
   } catch (err) {
-    console.warn("Failed to fetch parts analytics, using mock data", err);
+    devLog("Failed to fetch parts analytics, using mock data", err);
     data = {
       "totalParts": 265,
       "lifecycleBreakdown": [

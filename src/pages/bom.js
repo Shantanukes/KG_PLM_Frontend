@@ -1,3 +1,4 @@
+import { devLog } from '../utils.js';
 import { showToast, showModal, navigateTo, getCurrentUserRole } from '../main.js';
 import { authFetch } from '../api/client.js';
 import { getVehicleModels, getVehicleModelCodes } from '../api/vehicles.js';
@@ -265,7 +266,7 @@ export function renderBOM(container) {
 
       showToast('BOM exported successfully!', 'success');
     } catch (err) {
-      console.error('[BOM EXPORT]', err);
+      devLog('[BOM EXPORT]', err);
       showToast('Error exporting BOM: ' + (err.message || 'Unknown error'), 'error');
     }
   });
@@ -358,7 +359,7 @@ async function renderBomCloning(tc) {
               await linkPartToBOM(targetId, partId);
               successCount++;
             } catch (e) {
-              console.error('Error linking part', partId, e);
+              devLog('Error linking part', partId, e);
               failCount++;
             }
           }
@@ -373,7 +374,7 @@ async function renderBomCloning(tc) {
       tc.querySelector('#clone-source-id').value = '';
       tc.querySelector('#clone-target-id').value = '';
     } catch (err) {
-      console.error('Clone Error:', err);
+      devLog('Clone Error:', err);
       showToast(err.message || 'Error cloning parts', 'error');
     } finally {
       btn.disabled = false;
@@ -546,7 +547,7 @@ async function renderPartLinking(tc) {
       renderLinkedPanel(linkedItems);
       displaySearchResults();
     } catch (err) {
-      console.error('[REFRESH LINKED STATE]', err);
+      devLog('[REFRESH LINKED STATE]', err);
       showToast('Could not refresh link status from server.', 'error');
     }
   }
@@ -572,7 +573,7 @@ async function renderPartLinking(tc) {
     try {
       await refreshLinkedState();
     } catch (err) {
-      console.error('[LOAD BOM]', err);
+      devLog('[LOAD BOM]', err);
       linkedTbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;color:red">Failed to load BOM.</td></tr>';
       showToast(err.message || 'Error loading BOM parts', 'error');
     }
@@ -687,7 +688,7 @@ async function renderPartLinking(tc) {
       allSearchParts = items;
       displaySearchResults();
     } catch (err) {
-      console.error('[PART SEARCH]', err);
+      devLog('[PART SEARCH]', err);
       searchTbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;color:red">Failed to search parts.</td></tr>';
       showToast(err.message || 'Error searching parts', 'error');
     }
@@ -789,7 +790,7 @@ async function renderTeamBoms(tc) {
         </tr>
       `).join('');
     } catch (err) {
-      console.error('[TEAM BOMS]', err);
+      devLog('[TEAM BOMS]', err);
       tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:red">Failed to fetch BOMs.</td></tr>';
       showToast(err.message || 'Error fetching BOMs', 'error');
     }
@@ -928,7 +929,7 @@ async function renderBomParts(tc) {
 
       displayPartsList(items);
     } catch (err) {
-      console.error('[BOM PARTS]', err);
+      devLog('[BOM PARTS]', err);
       tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:red">Failed to fetch BOM parts. Please check the ID and try again.</td></tr>';
       showToast(err.message || 'Error fetching BOM parts', 'error');
     }
@@ -951,7 +952,7 @@ export async function openCreateBomModal(prefill = {}) {
       models = modelsData.items;
     }
   } catch (e) {
-    console.warn('Failed to load vehicle models', e);
+    devLog('Failed to load vehicle models', e);
   }
 
   const useDynamic = models && models.length > 0;
@@ -1120,7 +1121,7 @@ export async function openCreateBomModal(prefill = {}) {
         if (modelEl) modelEl.value = codes.modelCode || '';
         syncPreview();
       } catch (err) {
-        console.error('Failed to fetch vehicle model codes', err);
+        devLog('Failed to fetch vehicle model codes', err);
         showToast('Failed to load model codes', 'error');
       }
     };
@@ -1161,7 +1162,7 @@ export async function openCreateBomModal(prefill = {}) {
       parentBOMId: Number(parentBOMIdVal) || 0,
       vehicleModelId: Number(document.getElementById('bom-vehicle-model-select')?.value) || Number(document.getElementById('bom-vehicle-model-id')?.value) || 0
     };
-    console.log('[BOM CREATE] Sending payload:', JSON.stringify(bomPayload, null, 2));
+    devLog('[BOM CREATE] Sending payload:', JSON.stringify(bomPayload, null, 2));
 
     let backendId = null;
     try {
@@ -1169,7 +1170,7 @@ export async function openCreateBomModal(prefill = {}) {
       backendId = Number(newBomResp?.id || newBomResp?.bomId || 0) || null;
       showToast(`BOM ${bomNumber} created on server.`, 'success');
     } catch (e) {
-      console.error('[BOM CREATE] Server error:', e);
+      devLog('[BOM CREATE] Server error:', e);
       showToast(e.message || 'Server error creating BOM', 'error');
       return;
     }
@@ -1215,7 +1216,7 @@ async function openClonePromptModal(newBomId, categoryCode) {
       boms = Array.isArray(data) ? data : (data.items || []);
     }
   } catch (err) {
-    console.error('Failed to load BOMs for cloning', err);
+    devLog('Failed to load BOMs for cloning', err);
   }
 
   const optionsHtml = boms.length
@@ -1288,7 +1289,7 @@ async function openClonePromptModal(newBomId, categoryCode) {
               await linkPartToBOM(newBomId, partId);
               successCount++;
             } catch (e) {
-              console.error('Failed to link part', partId, e);
+              devLog('Failed to link part', partId, e);
               failCount++;
             }
           }
@@ -1301,7 +1302,7 @@ async function openClonePromptModal(newBomId, categoryCode) {
         }
         document.querySelector('.modal-overlay')?.remove();
       } catch (err) {
-        console.error('Clone Error:', err);
+        devLog('Clone Error:', err);
         showToast(err.message || 'Error cloning parts', 'error');
         submitBtn.disabled = false;
         submitBtn.innerHTML = 'Clone Parts';
@@ -1320,7 +1321,7 @@ async function loadServerBomTree(rootBomId) {
       // TODO: merge serverTree into BOM_TREE here if needed
     }
   } catch (e) {
-    console.warn('[BOM LOAD] Failed to fetch server BOM tree:', e.message);
+    devLog('[BOM LOAD] Failed to fetch server BOM tree:', e.message);
   }
 }
 
@@ -1483,7 +1484,7 @@ function renderBomNav(tc) {
         if (detailPanel) detailPanel.innerHTML = '<div class="empty-state"><span class="material-icons-outlined">info</span><h3>No details available</h3></div>';
       }
     } catch (err) {
-      console.error('[LOAD SERVER BOM TREE]', err);
+      devLog('[LOAD SERVER BOM TREE]', err);
       if (bomContainer) bomContainer.innerHTML = '<div style="padding:20px;text-align:center;color:red"><span class="material-icons-outlined">error_outline</span><br/>Failed to load BOM structure.</div>';
       if (detailPanel) detailPanel.innerHTML = '<div style="padding:20px;text-align:center;color:red">Failed to load part details.</div>';
       showToast(err.message || 'Error fetching BOM structure from server', 'error');
@@ -1541,7 +1542,7 @@ function renderBomNav(tc) {
           await updatePart(selectedPartId, payload);
           showToast('Part updated on server.', 'success');
         } catch (err) {
-          console.error('[PART UPDATE]', err);
+          devLog('[PART UPDATE]', err);
           p.name = payload.name;
           p.description = payload.description;
           p.makeBuy = payload.makeBuy === 0 ? 'Make (In-house)' : 'Buy';
@@ -1592,7 +1593,7 @@ function renderBomNav(tc) {
         `<table class="data-table"><thead><tr><th>BOM</th><th>Assembly</th><th>Model</th><th>Rev</th><th>Qty</th></tr></thead>
          <tbody>${bodyRows || '<tr><td colspan="5" class="text-xs text-secondary">No parent assemblies found.</td></tr>'}</tbody></table>`, '');
     } catch (err) {
-      console.error('[WHERE-USED]', err);
+      devLog('[WHERE-USED]', err);
       showModal(`Where Used: ${p.pn}`,
         `<div class="text-xs text-secondary">Failed to load where-used data: ${err.message}</div>`, '');
     }
@@ -1755,7 +1756,7 @@ async function renderPartDetail(id) {
       }
     }
   } catch (err) {
-    console.warn('[PART DETAILS]', err);
+    devLog('[PART DETAILS]', err);
   }
 
   const name = partData?.name || localP.name;
@@ -1883,7 +1884,7 @@ async function renderPartDetail(id) {
         showModal(`${docName}`, contentHtml, `<button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Close</button>`);
         setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
       } catch (err) {
-        console.error(err);
+        devLog(err);
         showToast(`Failed to load ${docName}: ${err.message}`, 'error');
       }
     });
@@ -1904,7 +1905,7 @@ async function renderPartDetail(id) {
         await downloadDocumentFile(docId, docFile);
         showToast('Download started!', 'success');
       } catch (err) {
-        console.error(err);
+        devLog(err);
         showToast(`Failed to download: ${err.message}`, 'error');
       }
     });
@@ -2068,7 +2069,7 @@ async function renderPartSearch(tc) {
       const res = await getParts(defaultParams);
       displayParts(res.items || res || []);
     } catch (err) {
-      console.error('[PARTS GET]', err);
+      devLog('[PARTS GET]', err);
       tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:red">Failed to load parts from server.</td></tr>';
     }
   };
@@ -2099,7 +2100,7 @@ async function renderPartSearch(tc) {
         await loadAll(params);
       }
     } catch (err) {
-      console.error('[PARTS SEARCH]', err);
+      devLog('[PARTS SEARCH]', err);
       tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:red">Search failed.</td></tr>';
     }
   });
@@ -2170,7 +2171,7 @@ function openApiPartEditModal(p, onSaved) {
         document.querySelector('.modal-overlay')?.remove();
         onSaved?.();
       } catch (err) {
-        console.error('[PART UPDATE]', err);
+        devLog('[PART UPDATE]', err);
         showToast('Error updating part via API.', 'error');
         document.querySelector('.modal-overlay')?.remove();
       }
@@ -2186,7 +2187,7 @@ async function renderBomCompare(tc) {
   try {
     boms = await getAllBomsWithParts();
   } catch (err) {
-    console.error('Failed to load BOMs for comparison', err);
+    devLog('Failed to load BOMs for comparison', err);
   }
 
   const items = Array.isArray(boms) ? boms : (boms?.items || []);
@@ -2297,7 +2298,7 @@ async function renderBomCompare(tc) {
       tc.querySelector('#compare-result').style.display = '';
       showToast('BOM comparison complete.', 'success');
     } catch (err) {
-      console.error('BOM Compare error', err);
+      devLog('BOM Compare error', err);
       showToast('Error comparing BOMs.', 'error');
     } finally {
       btn.disabled = false;
@@ -2316,7 +2317,7 @@ async function renderCreatePart(tc) {
       standardGroups = allGroups.filter(g => !g.isHardwareGroup);
     }
   } catch (err) {
-    console.error('Error fetching group numbers:', err);
+    devLog('Error fetching group numbers:', err);
   }
 
   tc.innerHTML = `
@@ -2610,7 +2611,7 @@ async function renderCreatePart(tc) {
       showToast(`Part ${generatedPartNumber} created and submitted for review!`, 'success');
       setTimeout(() => navigateTo('workflows'), 1500);
     } catch (err) {
-      console.error('[PART CREATE] Error:', err);
+      devLog('[PART CREATE] Error:', err);
       showToast(err instanceof Error ? err.message : 'Unable to create part.', 'error');
       if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = '<span class="material-icons-outlined" style="font-size:16px">send</span>Create & Submit for Review'; }
     }

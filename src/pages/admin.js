@@ -1,3 +1,4 @@
+import { devLog } from '../utils.js';
 import { showToast, showModal } from '../main.js';
 import { authFetch } from '../api/client.js';
 
@@ -74,7 +75,7 @@ export function renderAdmin(container) {
             showToast(`Failed to send invite. ${errText}`, 'error');
           }
         } catch (err) {
-          console.error('Error sending invite:', err);
+          devLog('Error sending invite:', err);
           showToast('Network error while sending invite.', 'error');
         }
       });
@@ -311,7 +312,7 @@ function renderUsers(tc) {
                       showToast('Failed to add member: ' + errText, 'error');
                     }
                   } catch (e) {
-                    console.error('Error adding member', e);
+                    devLog('Error adding member', e);
                     showToast('Network error while adding member', 'error');
                   }
                 });
@@ -335,7 +336,7 @@ function renderUsers(tc) {
                       showToast('Failed to remove member: ' + errText, 'error');
                     }
                   } catch (e) {
-                    console.error('Error removing member:', e);
+                    devLog('Error removing member:', e);
                     showToast('Network error while removing member', 'error');
                   }
                 });
@@ -346,7 +347,7 @@ function renderUsers(tc) {
             showToast('Failed to load team members.', 'error');
           }
         } catch (err) {
-          console.error('Error fetching team members:', err);
+          devLog('Error fetching team members:', err);
           showToast('Error loading team members.', 'error');
         }
       };
@@ -381,7 +382,7 @@ function renderUsers(tc) {
               showToast(`Failed to delete team. ${errMsg}`, 'error');
             }
           } catch (err) {
-            console.error('Error deleting team:', err);
+            devLog('Error deleting team:', err);
             showToast('Network error while deleting team.', 'error');
           }
         });
@@ -403,7 +404,7 @@ function renderUsers(tc) {
         </div>`;
     } catch (err) {
       tc.querySelector('#team-table-body').innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:#DC2626">Failed to load teams.</td></tr>';
-      console.error('Error fetching teams:', err);
+      devLog('Error fetching teams:', err);
     }
   };
 
@@ -434,7 +435,7 @@ function renderUsers(tc) {
         showToast('Error searching team', 'error');
       }
     } catch (err) {
-      console.error('Error searching team:', err);
+      devLog('Error searching team:', err);
       tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:#DC2626">Failed to search team due to network error.</td></tr>';
       showToast('Network error while searching team', 'error');
     }
@@ -484,7 +485,7 @@ function renderUsers(tc) {
           }
         } catch (err) {
           showToast('Network error while creating team', 'error');
-          console.error('Error creating team:', err);
+          devLog('Error creating team:', err);
         }
       });
     }, 50);

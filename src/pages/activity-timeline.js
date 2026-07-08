@@ -1,3 +1,4 @@
+import { devLog } from '../utils.js';
 import { authFetch } from '../api/client.js';
 
 export async function renderActivityTimeline(container) {
@@ -25,7 +26,7 @@ export async function renderActivityTimeline(container) {
         throw new Error('API failed');
       }
     } catch (err) {
-      console.warn("Failed to fetch activity timeline, using mock data", err);
+      devLog("Failed to fetch activity timeline, using mock data", err);
       // Fallback to mock data representing the requested schema
       activities = [
         {

@@ -1,10 +1,9 @@
 import { decideManagerTicket, getWorkflowTickets, getTicketBadgeClass, getTicketStatusLabel } from './ticketing.js';
-
-const SESSION_USER_KEY = 'kg_plm_session_user';
+import { TokenStore } from '../api/index.js';
 
 function getSessionRole() {
   try {
-    return JSON.parse(localStorage.getItem(SESSION_USER_KEY) || '{}')?.role || '';
+    return TokenStore.getSessionUser()?.role || '';
   } catch {
     return '';
   }
